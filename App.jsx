@@ -158,22 +158,24 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
       </div>
       {expanded && (
         <div className="cp-body">
-          {cart.map(c => {
-            const it = items.find(i => i.id === c.id);
-            if (!it) return null;
-            return (
-              <div className="cl" key={c.id}>
-                <span className="cl-name">{it.name}</span>
-                <div className="ir-ctrl">
-                  <button className="qbtn" onClick={() => onQtyChange(c.id, -1)} disabled={c.qty <= 1}>−</button>
-                  <span className="qnum">{c.qty}</span>
-                  <button className="qbtn" onClick={() => onQtyChange(c.id, +1)}>+</button>
+          <div className="cl-list">
+            {cart.map(c => {
+              const it = items.find(i => i.id === c.id);
+              if (!it) return null;
+              return (
+                <div className="cl" key={c.id}>
+                  <span className="cl-name">{it.name}</span>
+                  <div className="ir-ctrl">
+                    <button className="qbtn" onClick={() => onQtyChange(c.id, -1)} disabled={c.qty <= 1}>−</button>
+                    <span className="qnum">{c.qty}</span>
+                    <button className="qbtn" onClick={() => onQtyChange(c.id, +1)}>+</button>
+                  </div>
+                  <span className="cl-tot">{fmt(it.price * c.qty)}</span>
+                  <button className="cl-rm" onClick={() => onRemove(c.id)}>✕</button>
                 </div>
-                <span className="cl-tot">{fmt(it.price * c.qty)}</span>
-                <button className="cl-rm" onClick={() => onRemove(c.id)}>✕</button>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
           <div className="cp-total"><span>Total</span><span>{fmt(total)}</span></div>
           <div className="pay-pills">
             {['venmo', 'zelle', 'cash'].map(m => (
@@ -439,6 +441,7 @@ export default function App() {
   const [sync,      setSync]       = useState('synced');
   const [sheetsUrl, setSheetsUrl]  = useState(() => ld('vt_url', 'https://script.google.com/macros/s/AKfycbzypD6gRdRlx1JV-upbp8K1HBAa6LSDR4HOc7pRCvb7C5ZVJMzuS_39IHho9VEtr9pAsQ/exec'));
   const [queue,     setQueue]      = useState(() => ld('vt_q', []));
+  const [lastPay,   setLastPay]    = useState(() => ld('vt_lastpay', ''));
 
   useEffect(() => sv('vt_items', items),    [items]);
   useEffect(() => sv('vt_txns',  txns),     [txns]);
@@ -465,11 +468,20 @@ export default function App() {
   }, [sheetsUrl, queue.length]);
 
   // ── edit mode ────────────────────────────────────────────────────────────────
+  const buildDraft = () => items.filter(i => i.active).map(i => ({
+    ...i, price: String(i.price), stock: i.stock !== null ? String(i.stock) : ''
+  }));
+
   const enterEdit = () => {
-    setEditDraft(items.filter(i => i.active).map(i => ({
-      ...i, price: String(i.price), stock: i.stock !== null ? String(i.stock) : ''
-    })));
+    setEditDraft(buildDraft());
     setIsDirty(false);
+    setEditMode(true);
+  };
+
+  const enterEditWithNew = () => {
+    const newItem = { id: iid(), name: '', price: '0', stock: '', active: true };
+    setEditDraft([...buildDraft(), newItem]);
+    setIsDirty(true);
     setEditMode(true);
   };
 
@@ -538,6 +550,11 @@ export default function App() {
     setShowCancelConfirm(false);
   };
 
+  // pre-select last payment when first item added to empty cart
+  useEffect(() => {
+    if (cart.length > 0 && !cartPay && lastPay) setCartPay(lastPay);
+  }, [cart.length]);
+
   // ── cart ─────────────────────────────────────────────────────────────────────
   const addToCart = useCallback(id => {
     setCart(p => {
@@ -545,6 +562,7 @@ export default function App() {
       if (i >= 0) { const n = [...p]; n[i] = { ...n[i], qty: n[i].qty + 1 }; return n; }
       return [...p, { id, qty: 1 }];
     });
+    setCartExpanded(true);
   }, []);
 
   const subFromCart = useCallback(id => {
@@ -582,6 +600,8 @@ export default function App() {
       return it;
     }));
     setTxns(p => [txn, ...p]);
+    setLastPay(cartPay);
+    sv('vt_lastpay', cartPay);
     setCart([]);
     setCartPay('');
     setCartNote('');
@@ -679,6 +699,7 @@ export default function App() {
                     ))}
                   </>
                 )}
+                <button className="btn-add-item" onClick={enterEditWithNew}>+ Add item</button>
               </>
             )}
           </div>
