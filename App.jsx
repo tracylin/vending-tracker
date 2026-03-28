@@ -384,7 +384,7 @@ export default function App() {
   // other
   const [undoTxn, setUndoTxn] = useState(null);
   const [sync, setSync] = useState('synced');
-  const [sheetsUrl, setSheetsUrl] = useState(() => ld('vt_url', ''));
+  const [sheetsUrl, setSheetsUrl] = useState(() => ld('vt_url', 'https://script.google.com/macros/s/AKfycbzypD6gRdRlx1JV-upbp8K1HBAa6LSDR4HOc7pRCvb7C5ZVJMzuS_39IHho9VEtr9pAsQ/exec'));
   const [queue, setQueue] = useState(() => ld('vt_q', []));
 
   useEffect(() => sv('vt_items', items), [items]);
