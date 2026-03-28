@@ -779,12 +779,15 @@ export default function App() {
   };
 
   // ── derived item lists ───────────────────────────────────────────────────────
+  const [sortLang, setSortLang] = useState(false);
   const langSort = arr => [...arr].sort((a, b) => {
-    const ae = isENFirst(a.lang), be = isENFirst(b.lang);
+    const ae = a.lang?.includes('EN'), be = b.lang?.includes('EN');
     return ae === be ? 0 : ae ? -1 : 1;
   });
-  const inStockItems = langSort(items.filter(i => i.active && (i.stock === null || i.stock > 0)));
-  const oosItems     = langSort(items.filter(i => i.active && i.stock !== null && i.stock <= 0));
+  const activeItems = items.filter(i => i.active);
+  const sorted      = sortLang ? langSort(activeItems) : activeItems;
+  const inStockItems = sorted.filter(i => i.stock === null || i.stock > 0);
+  const oosItems     = sorted.filter(i => i.stock !== null && i.stock <= 0);
 
   return (
     <>
@@ -814,6 +817,11 @@ export default function App() {
               </>
             ) : (
               <>
+                <div className="sort-bar">
+                  <button className={`sort-btn${sortLang ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>
+                    EN First {sortLang ? '✕' : '↕'}
+                  </button>
+                </div>
                 {inStockItems.map(item => (
                   <ItemRow
                     key={item.id} item={item}

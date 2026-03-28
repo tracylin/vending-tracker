@@ -54,6 +54,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 /* ── main scroll ── */
 .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;min-height:120px;background:var(--s2)}
 
+/* ── sort bar ── */
+.sort-bar{padding:7px 12px;background:var(--s1);border-bottom:1px solid var(--bd);display:flex;gap:6px}
+.sort-btn{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;background:var(--s3);color:var(--t2);letter-spacing:.2px;transition:background 120ms,color 120ms}
+.sort-btn.on{background:var(--ac2);color:var(--ac);border:1px solid rgba(40,40,204,.25)}
+
 /* ── item list ── */
 .items-list{padding:0}
 .item-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--bd);transition:background 220ms ease;user-select:none;-webkit-user-select:none;touch-action:manipulation}
