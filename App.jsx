@@ -779,15 +779,28 @@ export default function App() {
   };
 
   // ── derived item lists ───────────────────────────────────────────────────────
-  const [sortLang, setSortLang] = useState(false);
-  const langSort = arr => [...arr].sort((a, b) => {
-    const ae = a.lang?.includes('EN'), be = b.lang?.includes('EN');
-    return ae === be ? 0 : ae ? -1 : 1;
-  });
-  const activeItems = items.filter(i => i.active);
-  const sorted      = sortLang ? langSort(activeItems) : activeItems;
-  const inStockItems = sorted.filter(i => i.stock === null || i.stock > 0);
-  const oosItems     = sorted.filter(i => i.stock !== null && i.stock <= 0);
+  const [sortLang,  setSortLang]  = useState(false);
+  const [sortStock, setSortStock] = useState(false);
+
+  const applySort = arr => {
+    if (!sortLang && !sortStock) return arr;
+    return [...arr].sort((a, b) => {
+      if (sortLang) {
+        const ae = a.lang?.includes('EN'), be = b.lang?.includes('EN');
+        if (ae !== be) return ae ? -1 : 1;
+      }
+      if (sortStock) {
+        const an = a.stock === null, bn = b.stock === null;
+        if (an !== bn) return an ? 1 : -1;       // unlimited goes after tracked
+        if (!an && !bn) return a.stock - b.stock; // low stock first
+      }
+      return 0;
+    });
+  };
+
+  const activeItems  = items.filter(i => i.active);
+  const inStockItems = applySort(activeItems.filter(i => i.stock === null || i.stock > 0));
+  const oosItems     = applySort(activeItems.filter(i => i.stock !== null && i.stock <= 0));
 
   return (
     <>
@@ -818,9 +831,8 @@ export default function App() {
             ) : (
               <>
                 <div className="sort-bar">
-                  <button className={`sort-btn${sortLang ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>
-                    EN First {sortLang ? '✕' : '↕'}
-                  </button>
+                  <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN First</button>
+                  <button className={`sort-btn${sortStock ? ' on' : ''}`} onClick={() => setSortStock(v => !v)}>Stock</button>
                 </div>
                 {inStockItems.map(item => (
                   <ItemRow
