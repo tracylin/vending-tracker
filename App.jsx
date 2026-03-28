@@ -144,7 +144,7 @@ function ItemRow({ item, cqty, onAdd, onSub }) {
       <div className="ir-info">
         <div className="ir-name-row">
           <span className="ir-name">{item.name}</span>
-          {item.lang && <span className={`lang-tag${isENFirst(item.lang) ? ' en' : ''}`}>{item.lang}</span>}
+          {item.lang && <span className={`lang-tag${item.lang.includes('EN') ? ' en' : ''}`}>{item.lang}</span>}
         </div>
         {item.stock !== null && (
           <span className={`ir-stock${oos ? ' oos-label' : low ? ' warn' : ''}`}>
