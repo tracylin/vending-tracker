@@ -1,0 +1,703 @@
+================================================================================
+  VENDING TRACKER — REQUIREMENTS & UX SPEC
+  Context: Ontario Art Book Fair 2026 (and future art fairs / pop-up vending)
+  Stack pattern: React (single HTML file) + Google Apps Script + Google Sheets
+  Learned from: CostumeOS, MooTracker
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 1 — CLARIFIED 需求 (REQUIREMENTS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIMARY USE CASE
+  - Vendor at a busy art fair table, phone in hand
+  - Customer picks multiple items; record the whole interaction in under 5 taps
+  - Check totals at end of day / for tax/accounting purposes
+  - Everything backed up to Google Sheets automatically
+
+CORE FEATURES
+
+  [1] ITEM CATALOG
+      - List of items with name, price, and optional stock count
+      - Items are pre-configured (not created during the fair)
+      - Can have category grouping (e.g. Zines, Prints, Books, Stickers)
+      - Each item has a thumbnail color or emoji for quick visual ID
+      - Admin mode to add/edit/remove items and prices and edit stock count
+
+  [2] SALE RECORDING (interaction-based)
+      - A sale = one customer interaction, which may include multiple items
+      - Tap item cards to add them to the current cart (tap again to increment)
+      - Cart summary bar always visible at bottom of Items view:
+          "[n items · $XX.XX]  [  CHECKOUT  ]"
+      - Tap CHECKOUT → Checkout modal appears with:
+          - List of items in cart (name, qty, line total) — editable (qty +/− per line, remove line)
+          - Payment method selector: Venmo / Zelle / Cash
+          - Optional note field (e.g. "gave discount", "trade")
+          - Total for this transaction
+          - [Cancel]  [✓ CONFIRM SALE]
+      - On confirm: transaction is logged instantly with timestamp
+      - Undo last transaction (within 30 seconds): reverses the entire transaction
+          — all line items removed, full amount deducted from totals, stock restored
+      - Stock deduction per item on confirm
+
+  [3] PAYMENT METHOD TRACKING
+      - Three methods: Venmo | Zelle | Cash
+      - Live running totals per method visible at all times
+      - Grand total displayed prominently
+      - End-of-day breakdown (how much cash to count, how much digital)
+
+  [4] GOOGLE SHEETS SYNC
+      - Each confirmed transaction → multiple rows in Sheets (one row per line item),
+        all sharing the same transaction_id
+      - Offline queue: if no internet, transactions are queued and synced when back online
+      - Sync status indicator (green = synced, yellow = pending, red = error)
+      - Sheet also stores item catalog (separate tab) for cross-device consistency
+
+  [5] DASHBOARD / SUMMARY
+      - Today's total revenue
+      - Breakdown: Venmo / Zelle / Cash totals
+      - Best-selling items (by count and by revenue)
+      - Sales log (most recent first, scrollable) — one row per transaction,
+        expandable to see individual line items
+      - Can filter log by payment method
+
+NICE-TO-HAVE (Phase 2)
+  - Multi-day event support (date filter)
+  - Export/print end-of-day report
+  - QR code display for Venmo/Zelle (customer scans to pay)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 2 — UX FLOW & INTERACTION SPECS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ┌─ TWO ENTRY POINTS ON ARRIVAL ──────────────────────────────────────────┐
+  │                                                                          │
+  │  A  Open app ──▶ [ITEMS VIEW — A1]                                      │
+  │                                                                          │
+  │  B  Tap [📦 Stock] in header ──▶ [STOCK SETUP SHEET — A3]              │
+  │     (intended first action when arriving at fair booth)                  │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+                          ┌─────────────────┐
+                    OPEN  │  ITEMS VIEW     │  (default tab)
+                  ───────▶│  [A1] no cart   │
+                          └────────┬────────┘
+                                   │ tap card / row body  → qty +1
+                                   │ tap [−] on card      → qty −1
+                                   ▼
+                          ┌─────────────────┐
+                          │  ITEMS VIEW     │  badge on card (×n)
+                          │  [A2] cart      │  [−] button visible on card
+                          │  building       │  cart bar slides up
+                          │                 │◀──────────────────────────┐
+                          └────────┬────────┘                           │
+                                   │ tap CHECKOUT                       │
+                                   ▼                                    │
+                     ┌─────────────────────────┐                       │
+                     │   CHECKOUT MODAL [B]    │──── tap × or Cancel ──┘
+                     │   review + edit cart    │     (cart preserved)
+                     │   select payment method │
+                     │   optional note         │
+                     └────────────┬────────────┘
+                                  │ tap ✓ SOLD  (payment required)
+                                  ▼
+                     ┌─────────────────────────┐
+                     │   transaction logged    │
+                     │   stock deducted        │
+                     │   cart cleared          │
+                     │   modal closes          │
+                     │   header totals update  │
+                     │   sync attempt starts   │
+                     └────────────┬────────────┘
+                                  ▼
+                     ┌─────────────────────────┐
+                     │   UNDO TOAST  [T]       │
+                     │   30s countdown         │
+                     │   tap UNDO ─────────────┼──▶ entire txn reversed
+                     │   auto-dismiss          │    stock restored
+                     └─────────────────────────┘    header reverts
+
+  LONG-PRESS any card or row (600ms hold)
+  ──────────────────────────────────────
+  ──▶ [EDIT ITEM SHEET — A4]
+      edit name / emoji / price / stock for that item
+      available any time, even mid-selling
+
+
+  ─────────────────────────────────────────────────────────────────────────
+  BOTTOM NAV  (always visible, cart state preserved across tabs)
+  ─────────────────────────────────────────────────────────────────────────
+
+  [Items]────▶ grid + book row + cart bar
+  [Log]──────▶ transaction list, filter by payment, tap to expand
+  [Summary]──▶ revenue, payment breakdown, top items
+  [⚙️]───────▶ Sheets URL config + reset only (items edited via long-press)
+
+
+  ─────────────────────────────────────────────────────────────────────────
+  INTERACTION SPECS
+  ─────────────────────────────────────────────────────────────────────────
+
+  ITEM CARD (grid items — Zine A, Zine B, Print, Sticker)
+  ────────────────────────────────────────────────────────
+  Idle:
+    - dark card, emoji + name + price + stock count
+    - stock: dim gray label; ≤3 left → amber; 0 → "sold out", card dims to 35% opacity
+    - min touch target: full card face (≥44×44px)
+
+  Tap (qty = 0 in cart):
+    - press: scale 0.94, 80ms ease-in
+    - release: scale 1.0, 150ms ease-out
+    - badge ×1 slides in from top-right (scale 0→1, 200ms spring)
+    - card border flashes accent green, 500ms fade out
+    - [−] button fades in bottom-left of card, 200ms
+    - cart bar slides up if first item, 250ms ease-out
+
+  Tap (qty > 0 in cart, tap card body):
+    - same scale animation
+    - badge number pops: scale 1.3→1.0, 150ms spring
+
+  Tap [−] button (bottom-left of card):
+    - button: scale 0.86→1.0, 100ms spring
+    - badge decrements
+    - at qty = 1→0: badge scale 1→0 (200ms), [−] fades out (200ms)
+    - if cart becomes empty: cart bar slides down, 200ms ease-in
+
+  Long-press (600ms):
+    - at 400ms: card border brightens (early feedback)
+    - at 600ms: subtle haptic, card scale 1.02
+    - Edit Item sheet slides up
+
+  BOOK ROW (full-width list row, always below the card grid)
+  ──────────────────────────────────────────────────────────
+  Idle (not in cart):
+    📚  Book          5 left          $40.00  [+]
+    - [+] is a 44px tap target on the right
+    - tap anywhere on row OR tap [+]: qty +1
+    - [+] scales 0.86→1.0, 100ms spring; row bg flashes green 400ms
+
+  In cart (qty > 0):
+    📚  Book          5 left    [−]  ×1  [+]  $40.00
+    - [−] and [+] appear inline via fade+slide, 200ms
+    - qty number pops on change: scale 1.3→1.0, 150ms
+
+  Long-press row: same as card — edit sheet slides up
+
+  STOCK SETUP SHEET  (tap [📦 Stock] in header)
+  ──────────────────────────────────────────────
+  - Sheet slides up, 250ms ease-out
+  - Lists all items: emoji + name | [−] | [qty field] | [+]
+  - Qty field: tap to focus → numeric keyboard opens, pre-selected text
+  - [−][+]: fine-tune without keyboard
+  - Current stock pre-filled; blank if never set
+  - [Done] saves all and closes sheet
+  - Designed for: head-down, 5 items, under 30 seconds
+
+  CHECKOUT MODAL
+  ──────────────
+  - Slides up 250ms ease-out; backdrop fades in simultaneously
+  - Line item qty [−]: disabled + dimmed at qty=1 (use [×] to remove)
+  - Line item [×] remove: row slides left + fades, 180ms ease-in
+  - Payment pill: tap fills pill with method color, scale 1.05, 140ms
+  - SOLD button: greyed + disabled until payment selected
+  - SOLD tap: spinner 300ms → success checkmark flash → modal slides down 300ms
+
+  UNDO TOAST
+  ──────────
+  - Slides up above nav, 280ms ease-out
+  - Sits above cart bar if cart bar is also visible
+  - Timer shows seconds counting down (30→0)
+  - UNDO: toast slides down immediately, all state reversed
+  - Auto-dismiss at 0: slides down
+
+  SYNC INDICATOR (top-right of header)
+  ─────────────────────────────────────
+  - Synced:  solid green dot · "synced"
+  - Syncing: amber pulsing dot · "syncing…"
+  - Error:   red dot · "sync failed" — tap to retry
+  - Offline: grey dot · "offline"
+  - Color crossfade: 300ms
+
+  REDUCED MOTION
+  ──────────────
+  - All transforms and fades disabled if prefers-reduced-motion: reduce
+  - State changes still visible (color, opacity) but instant
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 3 — ASCII MOCKUPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+────────────────────────────────────────────────────────────
+ A1  ITEMS VIEW — empty cart (launch state)
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│  ← [📦 Stock] = fast stock setup
+  │  $0.00                                  │
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │      📖      │  │      📰      │    │
+  │  │    Zine A    │  │    Zine B    │    │
+  │  │    $8.00     │  │    $10.00    │    │
+  │  │   10 left    │  │    8 left    │    │  ← stock shown on card
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │      🖨️      │  │      ✨      │    │
+  │  │    Print     │  │   Sticker    │    │
+  │  │    $25.00    │  │    $3.00     │    │
+  │  │    5 left    │  │   20 left    │    │
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  ─────────────────────────────────────  │  ← divider before list item
+  │  📚  Book           10 left   $40.00 [+]│  ← Book: always full-width row
+  │  ─────────────────────────────────────  │
+  │                                         │
+  │                           (no cart bar) │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  Notes:
+  - [📦 Stock] in header: tap to open Stock Setup sheet (see A3)
+  - Long-press any card or Book row for 600ms → Edit Item sheet (see A4)
+  - Book row [+] = tap anywhere on row or the [+] button to add to cart
+
+
+────────────────────────────────────────────────────────────
+ A2  ITEMS VIEW — cart building
+      (Zine A ×1, Sticker ×2, Book ×1 in cart)
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $142.00   💵$60  💜$52  🟩$30         │
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │           ×1 │  │              │    │  ← badge top-right
+  │  │      📖      │  │      📰      │    │
+  │  │    Zine A    │  │    Zine B    │    │
+  │  │    $8.00     │  │    $10.00    │    │
+  │  │ [−]  9 left  │  │    8 left    │    │  ← [−] appears bottom-left
+  │  └──────────────┘  └──────────────┘    │     when in cart
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │              │  │           ×2 │    │
+  │  │      🖨️      │  │      ✨      │    │
+  │  │    Print     │  │   Sticker    │    │
+  │  │    $25.00    │  │    $3.00     │    │
+  │  │    5 left    │  │ [−] 18 left  │    │
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  ─────────────────────────────────────  │
+  │  📚  Book            9 left [−] ×1 [+] │  ← Book row: inline −/qty/+
+  │  ─────────────────────────────────────  │     when in cart
+  │                                         │
+  │  ┌─────────────────────────────────┐   │
+  │  │  4 items · $54.00    CHECKOUT   │   │  ← cart bar
+  │  └─────────────────────────────────┘   │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  Card with badge: tap card body = +1 · tap [−] bottom-left = −1
+  Book row with qty: tap [−] = −1 · tap [+] or row body = +1
+  Either reaching 0: badge/controls fade out, cart bar slides down if empty
+
+
+────────────────────────────────────────────────────────────
+ A3  STOCK SETUP SHEET (tap [📦 Stock] in header)
+     Goal: set all stock counts in under 30 seconds
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $142.00   💵$60  💜$52  🟩$30         │
+  ├─────────────────────────────────────────┤
+  │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+  │ ┌─────────────────────────────────── ┐ │
+  │ │ Set Stock                       ×  │ │
+  │ ├─────────────────────────────────── ┤ │
+  │ │                                    │ │
+  │ │  📖  Zine A        [−]  [10]  [+]  │ │  ← tap [10] → number keyboard
+  │ │  📰  Zine B        [−]  [ 8]  [+]  │ │    opens, pre-selected
+  │ │  🖨️   Print         [−]  [ 5]  [+]  │ │
+  │ │  ✨  Sticker       [−]  [20]  [+]  │ │
+  │ │  📚  Book          [−]  [10]  [+]  │ │
+  │ │                                    │ │
+  │ │  [ Done — Save All ]               │ │
+  │ └────────────────────────────────────┘ │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  Notes:
+  - Pre-fills current stock values (or 0 if never set)
+  - Tap any number field → numeric keyboard, text pre-selected for fast replace
+  - [−][+] for quick ±1 adjustments without keyboard
+  - [Done] saves all at once and dismisses sheet
+  - Accessible any time (even mid-day to recount)
+
+
+────────────────────────────────────────────────────────────
+ A4  EDIT ITEM SHEET (long-press any card or row, 600ms)
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $142.00   💵$60  💜$52  🟩$30         │
+  ├─────────────────────────────────────────┤
+  │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+  │ ┌─────────────────────────────────── ┐ │
+  │ │ Edit Item                       ×  │ │
+  │ ├─────────────────────────────────── ┤ │
+  │ │                                    │ │
+  │ │  [ 📖 ]  [ Zine A______________ ]  │ │  ← emoji  name (side by side)
+  │ │                                    │ │
+  │ │  Price ($)                         │ │
+  │ │  [ 8.00_________________________]  │ │
+  │ │                                    │ │
+  │ │  Stock                             │ │
+  │ │  [ 10__________________________ ]  │ │  ← blank = unlimited
+  │ │                                    │ │
+  │ │  [ Save ]      [ Delete Item ]     │ │
+  │ └────────────────────────────────────┘ │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  Notes:
+  - Category removed from this quick-edit sheet (less critical in the field)
+  - Delete: first tap shows "Tap again to delete" confirmation inline
+  - Available via long-press from Screen A — no need to go to Admin
+
+
+────────────────────────────────────────────────────────────
+ B   CHECKOUT MODAL
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+  │ ┌─────────────────────────────────── ┐ │
+  │ │ Checkout                        ×  │ │  ← × closes, preserves cart
+  │ ├─────────────────────────────────── ┤ │
+  │ │                                    │ │
+  │ │  📖  Zine A     [−] 1 [+]  [×]  $8│ │  ← [−] dim at qty=1
+  │ │  ✨  Sticker    [−] 2 [+]  [×]  $6│ │  ← [×] removes line entirely
+  │ │  📚  Book       [−] 1 [+]  [×] $40│ │
+  │ │  ─────────────────────────────────│ │
+  │ │                      Total  $54.00│ │
+  │ │                                    │ │
+  │ │  PAYMENT                           │ │
+  │ │  ┌─────────┐ ┌─────────┐ ┌──────┐ │ │
+  │ │  │  💜     │ │  🟩     │ │  💵  │ │ │
+  │ │  │  Venmo  │ │  Zelle  │ │ Cash │ │ │
+  │ │  └─────────┘ └─────────┘ └──────┘ │ │
+  │ │            (none selected)         │ │
+  │ │                                    │ │
+  │ │  Note  ________________________    │ │
+  │ │                                    │ │
+  │ │  [ Cancel ]     [ ✓ SOLD (grey) ] │ │  ← SOLD disabled, no payment
+  │ └────────────────────────────────────┘ │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  After Cash selected:
+  │  ┌──────┐ ┌──────┐ ┌────────────────┐  │
+  │  │  💜  │ │  🟩  │ │ ▶ 💵  Cash     │  │  ← filled pill
+  │  └──────┘ └──────┘ └────────────────┘  │
+  │  [ Cancel ]          [ ✓ SOLD ]        │  ← SOLD now active (green)
+
+
+────────────────────────────────────────────────────────────
+ T   UNDO TOAST + low-stock state
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $196.00   💵$114  💜$52  🟩$30        │  ← totals updated
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │      📖      │  │      📰      │    │
+  │  │    Zine A    │  │    Zine B    │    │
+  │  │    $8.00     │  │    $10.00    │    │
+  │  │    9 left    │  │    8 left    │    │
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │      🖨️      │  │      ✨      │    │
+  │  │    Print     │  │   Sticker    │    │
+  │  │    $25.00    │  │    $3.00     │    │
+  │  │  ⚠ 2 left   │  │   18 left    │    │  ← ⚠ amber when ≤3
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  ─────────────────────────────────────  │
+  │  📚  Book             9 left   $40.00[+]│
+  │  ─────────────────────────────────────  │
+  │                                         │
+  │  ┌─────────────────────────────────┐   │
+  │  │  Sold: Zine A, Sticker×2, Book   │   │
+  │  │  25s                       UNDO  │   │  ← toast above nav
+  │  └─────────────────────────────────┘   │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  If new cart building starts while toast visible:
+  toast shifts up above the cart bar (both visible simultaneously)
+
+
+────────────────────────────────────────────────────────────
+ C1  LOG VIEW — collapsed
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $196.00   💵$114  💜$52  🟩$30        │
+  ├─────────────────────────────────────────┤
+  │  [ All ]  [💜 Venmo]  [🟩 Zelle]  [💵 Cash] │
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  2:55pm  Zine A, Sticker ×2, Book  ▸  │
+  │          $54.00                💵 Cash  │
+  │                                         │
+  │  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+  │                                         │
+  │  2:34pm  Zine B ×2, Sticker        ▸  │
+  │          $23.00               💜 Venmo  │
+  │                                         │
+  │  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+  │                                         │
+  │  2:15pm  Book                       ▸  │
+  │          $40.00               🟩 Zelle  │
+  │                                         │
+  │  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+  │                                         │
+  │  2:10pm  Print, Sticker ×3         ▸  │
+  │          $34.00               💵 Cash   │
+  │  "gave discount"                        │
+  │                                         │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+
+────────────────────────────────────────────────────────────
+ C2  LOG VIEW — row expanded
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  ...                                    │
+  │  2:55pm  Zine A, Sticker ×2, Book  ▾  │  ← ▾ expanded
+  │          $54.00                💵 Cash  │
+  │                                         │
+  │          📖  Zine A        ×1    $8.00  │
+  │          ✨  Sticker       ×2    $6.00  │
+  │          📚  Book          ×1   $40.00  │
+  │                                         │
+  │  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+  │  2:34pm  Zine B ×2, Sticker        ▸  │
+  │          $23.00               💜 Venmo  │
+  │  ...                                    │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+
+────────────────────────────────────────────────────────────
+ D   SUMMARY VIEW
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $196.00   💵$114  💜$52  🟩$30        │
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  ┌─────────────────────────────────┐   │
+  │  │        TOTAL REVENUE            │   │
+  │  │            $196.00              │   │
+  │  └─────────────────────────────────┘   │
+  │                                         │
+  │  ┌──────────────┐  ┌──────────────┐    │
+  │  │      4       │  │    $49.00    │    │
+  │  │ Transactions │  │     Avg      │    │
+  │  └──────────────┘  └──────────────┘    │
+  │                                         │
+  │  BY PAYMENT                             │
+  │  💵 Cash   ████████████░░  $114  (58%) │
+  │  💜 Venmo  ██████░░░░░░░░   $52  (27%) │
+  │  🟩 Zelle  ████░░░░░░░░░░   $30  (15%) │
+  │                                         │
+  │  TOP ITEMS                              │
+  │  1.  📚  Book       ×3    $120          │
+  │  2.  🖨️   Print      ×2     $50          │
+  │  3.  ✨  Sticker    ×8     $24          │
+  │  4.  📖  Zine A     ×2     $16          │
+  │  5.  📰  Zine B     ×2     $20          │
+  │                                         │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+
+────────────────────────────────────────────────────────────
+ E   ADMIN / SETTINGS (⚙️)
+     Simplified — items edited via long-press in Screen A
+────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────┐
+  │  🛍️ Vending Tracker  [📦 Stock] ●synced│
+  │  $196.00   💵$114  💜$52  🟩$30        │
+  ├─────────────────────────────────────────┤
+  │                                         │
+  │  ITEMS                          [+ Add] │  ← add new item here
+  │  ─────────────────────────────────────  │
+  │  📖  Zine A      $8.00    10 left       │  ← read-only list
+  │  📰  Zine B     $10.00     8 left       │    (edit via long-press in A)
+  │  🖨️   Print      $25.00     2 left  ⚠  │  ← ⚠ low stock indicator
+  │  ✨  Sticker      $3.00    18 left       │
+  │  📚  Book        $40.00     9 left       │
+  │                                         │
+  │  GOOGLE SHEETS                          │
+  │  ─────────────────────────────────────  │
+  │  Apps Script URL                        │
+  │  [ https://script.google.com/…_______ ] │
+  │  [ Save URL ]                           │
+  │                                         │
+  │  DANGER                                 │
+  │  ─────────────────────────────────────  │
+  │  [ Reset Today's Sales (4 transactions)]│
+  │                                         │
+  ├─────────────────────────────────────────┤
+  │  🛍️ Items  📋 Log  📊 Summary      ⚙️  │
+  └─────────────────────────────────────────┘
+
+  Note: [+ Add] opens the Edit Item sheet for a new blank item.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 4 — INTERACTION SPECS (Interaction Designer)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ITEM CARD (tap to add to cart)
+  Hover/Touch:
+    - Scale: 1.03, shadow deepens
+    - Transition: 150ms ease-out
+    - Cursor: pointer
+  Active (press):
+    - Scale: 0.96
+    - Transition: 80ms ease-in
+  Added to cart flash:
+    - Background pulses green for 600ms
+    - If already in cart, show a qty badge (e.g. "×2") on the card
+    - Easing: ease-out fade back to normal
+    - Non-blocking (card is immediately tappable again)
+
+CART BAR (bottom of Items view)
+  - Hidden when cart is empty (slides up into view on first item added)
+  - Shows: "[n items · $XX.XX]  [ CHECKOUT ]"
+  - Updates instantly on each tap
+  - Checkout button: accent color, full-width feel
+
+CHECKOUT MODAL
+  Enter: slide-up from bottom + backdrop fade-in, 250ms ease-out
+  Exit:  slide-down + backdrop fade-out, 200ms ease-in
+  Line item qty [+/−] buttons:
+    - Tap: scale 0.9 → 1.0, 100ms spring
+    - Disabled at 1 (can remove line instead) or max (opacity 0.3)
+  Payment pill selection:
+    - Selected: background fills, scale 1.05, 150ms ease-out
+    - Unselected: border only
+  SOLD button:
+    - Idle: accent color (#4caf85 or similar)
+    - Hover: brighten 10%, scale 1.02
+    - Loading: spinner, disabled, opacity 0.7
+    - Success: checkmark flash, modal auto-closes after 300ms
+
+UNDO TOAST
+  - Slides in from bottom after transaction confirmed
+  - Countdown ring animation (30s timer)
+  - Tap UNDO: reverses entire last transaction (all line items removed,
+    stock restored, totals updated)
+  - Auto-dismiss after 30s with slide-out animation
+
+SYNC STATUS INDICATOR (top-right)
+  - Synced: green dot, "synced" label
+  - Pending: yellow pulsing dot, "syncing..."
+  - Error: red dot, "sync failed" — tap for retry
+  - Transition: 300ms color crossfade
+
+BOTTOM NAV
+  - Active tab: accent underline + label bold
+  - Tap: slight scale 0.95 → 1.0 on icon, 100ms
+  - Tab switch: content crossfades 150ms ease-in-out
+
+SUMMARY TOTALS
+  - On mount or update: numbers count up from 0 to final value, 400ms ease-out
+  - Payment bars: width animates from 0%, 500ms ease-out
+  - Staggered: each bar delays 80ms after previous
+
+REDUCED MOTION
+  - All animations disabled if prefers-reduced-motion: reduce
+  - State changes remain instant but visible
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 5 — GOOGLE SHEETS SCHEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TAB: "Sales"
+  One row per line item. Rows from the same transaction share a transaction_id.
+  Columns: transaction_id | timestamp | item_name | quantity | unit_price | line_total
+           | payment_method | note | synced_at
+
+  Example (one 3-item transaction):
+  txn_001 | 2:34pm | Zine A  | 1 | 8.00  |  8.00 | Cash | ""  | 2:34pm
+  txn_001 | 2:34pm | Print   | 1 | 25.00 | 25.00 | Cash | ""  | 2:34pm
+  txn_001 | 2:34pm | Sticker | 2 |  3.00 |  6.00 | Cash | ""  | 2:34pm
+
+  Note: payment_method and note are the same for all rows in a transaction.
+  transaction_id format: e.g. txn_YYYYMMDD_HHMMSS or a short UUID.
+
+TAB: "Items"
+  Columns: id | name | emoji | price | category | active
+
+TAB: "Summary" (auto-generated by Apps Script formula, read-only)
+  Shows: total revenue, breakdown by method, top items, transaction count
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ SECTION 6 — OPEN QUESTIONS (需确认)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Q1: Do you want stock tracking? (e.g. "only 5 Zine A left" warning)
+  Q2: Multi-day events — should each day be a separate section/tab in Sheets?
+  Q3: Do you need a QR code display screen for Venmo/Zelle payment links?
+  Q4: Color theme preference — dark (like CostumeOS/MooTracker) or light?
+  Q5: Should items/prices live in Google Sheets (shared, editable remotely)
+      or in the app's admin panel (local config, pushed to Sheets)?
+  Q6: Do you have an existing Google Sheet for Ontario Art Book Fair 2026
+      we should connect to, or create a fresh one?
+  Q7: Will you use this solo or does your partner/helper also need access
+      (multi-device sync matters more if multiple people are selling)?
+  Q8: Discount support? (e.g. custom total override or per-item price edit
+      in the checkout modal)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ WORKFLOW STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [✓] Step 1: Clarify 需求
+  [✓] Step 2: ASCII mockups + UX flow + interaction specs
+  [~] Step 3: Generate full webapp + test Google Sheets actions  ← YOU ARE HERE
+  [ ] Step 4: Finalize
+
+================================================================================
