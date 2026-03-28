@@ -52,8 +52,13 @@ async function pushSheets(url, txn) {
       item_name: i.name, quantity: i.qty, unit_price: i.up, line_total: i.lt,
       payment_method: txn.pay, note: txn.note || '', synced_at: new Date().toISOString()
     }));
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logTransaction', rows }) });
-    return r.ok;
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ action: 'logTransaction', rows })
+    });
+    return true;
   } catch { return false; }
 }
 
