@@ -67,12 +67,13 @@ function getSheet(ss) {
   return s;
 }
 
-// Run this manually once from the Apps Script editor to create the Sales tab
+// Run this manually once from the Apps Script editor to create both tabs
 // and confirm the script has permission to access the spreadsheet.
 function setup() {
-  const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
-  const sheet = getSheet(ss);
-  Logger.log('Setup complete. Sheet: ' + sheet.getName() + ' in ' + ss.getName());
+  const ss     = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sales  = getSheet(ss);
+  const items  = getItemsSheet(ss);
+  Logger.log('Setup complete. Sales: ' + sales.getName() + ', Items: ' + items.getName() + ' in ' + ss.getName());
 }
 
 function syncItemsSheet(items) {
