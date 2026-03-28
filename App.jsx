@@ -177,25 +177,6 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
       </div>
       {expanded && (
         <div className="cp-body">
-          <div className="cl-list">
-            {cart.map(c => {
-              const it = items.find(i => i.id === c.id);
-              if (!it) return null;
-              return (
-                <div className="cl" key={c.id}>
-                  <span className="cl-name">{it.name}</span>
-                  <div className="ir-ctrl">
-                    <button className="qbtn" onClick={() => onQtyChange(c.id, -1)} disabled={c.qty <= 1}>−</button>
-                    <span className="qnum">{c.qty}</span>
-                    <button className="qbtn" onClick={() => onQtyChange(c.id, +1)}>+</button>
-                  </div>
-                  <span className="cl-tot">{fmt(it.price * c.qty)}</span>
-                  <button className="cl-rm" onClick={() => onRemove(c.id)}>✕</button>
-                </div>
-              );
-            })}
-          </div>
-          <div className="cp-total"><span>Total</span><span>{fmt(total)}</span></div>
           <div className="pay-pills">
             {['venmo', 'zelle', 'cash'].map(m => (
               <button key={m} className={`ppill${pay === m ? ` s-${m}` : ''}`} onClick={() => setPay(p => p === m ? '' : m)}>
