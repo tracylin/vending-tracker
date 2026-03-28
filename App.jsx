@@ -61,6 +61,16 @@ async function pushSheets(url, txn) {
   } catch { return false; }
 }
 
+function pushItemsSync(url, items) {
+  if (!url) return;
+  const payload = items.filter(i => i.active).map(i => ({ name: i.name, price: i.price, stock: i.stock }));
+  fetch(url, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ action: 'syncItems', items: payload })
+  }).catch(() => {});
+}
+
 async function pushDeleteTransactions(url, ids) {
   if (!url || !ids.length) return false;
   try {
@@ -584,6 +594,7 @@ export default function App() {
     setEditMode(false);
     setEditDraft(null);
     setIsDirty(false);
+    pushItemsSync(sheetsUrl, committed);
   };
 
   const cancelEdit = () => {
@@ -642,11 +653,12 @@ export default function App() {
       note:  cartNote,
       synced: false,
     };
-    setItems(p => p.map(it => {
+    const newItems = items.map(it => {
       const s = txn.items.find(i => i.id === it.id);
       if (s && it.stock !== null) return { ...it, stock: Math.max(0, it.stock - s.qty) };
       return it;
-    }));
+    });
+    setItems(newItems);
     setTxns(p => [txn, ...p]);
     setLastPay(cartPay);
     sv('vt_lastpay', cartPay);
@@ -656,6 +668,7 @@ export default function App() {
     setCartExpanded(false);
     setCartBusy(false);
     setUndoTxn(txn);
+    pushItemsSync(sheetsUrl, newItems);
     if (sheetsUrl) {
       setSync('syncing');
       const ok = await pushSheets(sheetsUrl, txn);
@@ -667,14 +680,16 @@ export default function App() {
   const undo = () => {
     if (!undoTxn) return;
     const txn = undoTxn;
-    setItems(p => p.map(it => {
+    const newItems = items.map(it => {
       const s = txn.items.find(i => i.id === it.id);
       if (s && it.stock !== null) return { ...it, stock: it.stock + s.qty };
       return it;
-    }));
+    });
+    setItems(newItems);
     setTxns(p  => p.filter(t => t.id !== txn.id));
     setQueue(p => p.filter(t => t.id !== txn.id));
     setUndoTxn(null);
+    pushItemsSync(sheetsUrl, newItems);
   };
 
   const editTxn = (id, changes) => {
@@ -685,13 +700,15 @@ export default function App() {
     if (!confirm('Delete this transaction and restore its stock?')) return;
     const txn = txns.find(t => t.id === id);
     if (!txn) return;
-    setItems(p => p.map(it => {
+    const newItems = items.map(it => {
       const s = txn.items.find(i => i.id === it.id);
       if (s && it.stock !== null) return { ...it, stock: it.stock + s.qty };
       return it;
-    }));
+    });
+    setItems(newItems);
     setTxns(p  => p.filter(t => t.id !== id));
     setQueue(p => p.filter(t => t.id !== id));
+    pushItemsSync(sheetsUrl, newItems);
   };
 
   const resetToday = async () => {
@@ -701,14 +718,16 @@ export default function App() {
     todayTxns.forEach(txn => txn.items.forEach(it => {
       sold[it.id] = (sold[it.id] || 0) + it.qty;
     }));
-    setItems(p => p.map(it => {
+    const newItems = items.map(it => {
       const qty = sold[it.id] || 0;
       if (qty > 0 && it.stock !== null) return { ...it, stock: it.stock + qty };
       return it;
-    }));
+    });
+    setItems(newItems);
     setTxns(p => p.filter(x => !isToday(x.ts)));
     setQueue(p => p.filter(x => !todayTxns.find(t => t.id === x.id)));
     setUndoTxn(null);
+    pushItemsSync(sheetsUrl, newItems);
     if (sheetsUrl && todayTxns.length) {
       setSync('syncing');
       const ok = await pushDeleteTransactions(sheetsUrl, todayTxns.map(t => t.id));
@@ -718,10 +737,12 @@ export default function App() {
 
   const restoreOriginalStock = () => {
     if (!confirm("Restore all stock to original counts from the spreadsheet?")) return;
-    setItems(p => p.map(it => {
+    const newItems = items.map(it => {
       const def = DEFAULTS.find(d => d.id === it.id);
       return def ? { ...it, stock: def.stock } : it;
-    }));
+    });
+    setItems(newItems);
+    pushItemsSync(sheetsUrl, newItems);
   };
 
   // ── derived item lists ───────────────────────────────────────────────────────

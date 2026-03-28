@@ -19,6 +19,8 @@ function doPost(e) {
       logRows(data.rows);
     } else if (data.action === 'deleteTransactions') {
       deleteTransactionRows(data.ids);
+    } else if (data.action === 'syncItems') {
+      syncItemsSheet(data.items);
     }
     return json({ ok: true });
   } catch (err) {
@@ -69,6 +71,33 @@ function setup() {
   const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getSheet(ss);
   Logger.log('Setup complete. Sheet: ' + sheet.getName() + ' in ' + ss.getName());
+}
+
+function syncItemsSheet(items) {
+  const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getItemsSheet(ss);
+  const last  = sheet.getLastRow();
+  if (last > 1) sheet.getRange(2, 1, last - 1, 4).clearContent();
+  if (items && items.length) {
+    const vals = items.map(i => [i.name, i.price, i.stock !== null && i.stock !== undefined ? i.stock : '∞', new Date().toISOString()]);
+    sheet.getRange(2, 1, vals.length, 4).setValues(vals);
+  }
+}
+
+function getItemsSheet(ss) {
+  let s = ss.getSheetByName('Items');
+  if (!s) {
+    s = ss.insertSheet('Items');
+    const h = ['name', 'price', 'stock', 'updated_at'];
+    s.appendRow(h);
+    s.setFrozenRows(1);
+    s.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
+    s.setColumnWidth(1, 260);
+    s.setColumnWidth(2, 80);
+    s.setColumnWidth(3, 80);
+    s.setColumnWidth(4, 180);
+  }
+  return s;
 }
 
 function deleteTransactionRows(ids) {
