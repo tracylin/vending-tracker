@@ -166,6 +166,7 @@ function EditRow({ draft, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isL
 
 // ── CartPanel ─────────────────────────────────────────────────────────────────
 function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setNote, onSold, busy, expanded, setExpanded }) {
+  const [listOpen, setListOpen] = useState(false);
   const count = cart.reduce((s, c) => s + c.qty, 0);
   const total = cart.reduce((s, c) => { const it = items.find(i => i.id === c.id); return s + (it ? it.price * c.qty : 0); }, 0);
   if (!count) return null;
@@ -177,6 +178,30 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
       </div>
       {expanded && (
         <div className="cp-body">
+          <div className="cp-list-toggle" onClick={() => setListOpen(o => !o)}>
+            <span>Items</span>
+            <span className="cp-arrow">{listOpen ? '▲' : '▼'}</span>
+          </div>
+          {listOpen && (
+            <div className="cl-list">
+              {cart.map(c => {
+                const it = items.find(i => i.id === c.id);
+                if (!it) return null;
+                return (
+                  <div className="cl" key={c.id}>
+                    <span className="cl-name">{it.name}</span>
+                    <div className="ir-ctrl">
+                      <button className="qbtn" onClick={() => onQtyChange(c.id, -1)} disabled={c.qty <= 1}>−</button>
+                      <span className="qnum">{c.qty}</span>
+                      <button className="qbtn" onClick={() => onQtyChange(c.id, +1)}>+</button>
+                    </div>
+                    <span className="cl-tot">{fmt(it.price * c.qty)}</span>
+                    <button className="cl-rm" onClick={() => onRemove(c.id)}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <div className="pay-pills">
             {['venmo', 'zelle', 'cash'].map(m => (
               <button key={m} className={`ppill${pay === m ? ` s-${m}` : ''}`} onClick={() => setPay(p => p === m ? '' : m)}>
