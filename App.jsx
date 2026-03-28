@@ -61,20 +61,13 @@ async function pushSheets(url, txn) {
   } catch { return false; }
 }
 
-async function pushRestockRows(url, restockItems, note) {
-  if (!url || !restockItems.length) return false;
+async function pushDeleteTransactions(url, ids) {
+  if (!url || !ids.length) return false;
   try {
-    const ts  = new Date().toISOString();
-    const tid = 'RESTOCK-' + Date.now();
-    const rows = restockItems.map(r => ({
-      transaction_id: tid, timestamp: ts,
-      item_name: r.name, quantity: r.qty, unit_price: 0, line_total: 0,
-      payment_method: 'RESTOCK', note: note || 'Stock restored', synced_at: ts
-    }));
     await fetch(url, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify({ action: 'logTransaction', rows })
+      body: JSON.stringify({ action: 'deleteTransactions', ids })
     });
     return true;
   } catch { return false; }
@@ -704,10 +697,9 @@ export default function App() {
   const resetToday = async () => {
     if (!confirm("Reset today's sales and restore stock?")) return;
     const todayTxns = txns.filter(x => isToday(x.ts));
-    const sold = {}; const soldNames = {};
+    const sold = {};
     todayTxns.forEach(txn => txn.items.forEach(it => {
-      sold[it.id]      = (sold[it.id] || 0) + it.qty;
-      soldNames[it.id] = it.name;
+      sold[it.id] = (sold[it.id] || 0) + it.qty;
     }));
     setItems(p => p.map(it => {
       const qty = sold[it.id] || 0;
@@ -715,36 +707,21 @@ export default function App() {
       return it;
     }));
     setTxns(p => p.filter(x => !isToday(x.ts)));
+    setQueue(p => p.filter(x => !todayTxns.find(t => t.id === x.id)));
     setUndoTxn(null);
-    if (sheetsUrl) {
-      const restockItems = Object.entries(sold).map(([id, qty]) => ({ name: soldNames[id], qty }));
-      if (restockItems.length) {
-        setSync('syncing');
-        const ok = await pushRestockRows(sheetsUrl, restockItems, "Reset today's sales");
-        setSync(ok ? 'synced' : 'error');
-      }
+    if (sheetsUrl && todayTxns.length) {
+      setSync('syncing');
+      const ok = await pushDeleteTransactions(sheetsUrl, todayTxns.map(t => t.id));
+      setSync(ok ? 'synced' : 'error');
     }
   };
 
-  const restoreOriginalStock = async () => {
+  const restoreOriginalStock = () => {
     if (!confirm("Restore all stock to original counts from the spreadsheet?")) return;
-    const changes = [];
-    items.forEach(it => {
-      const def = DEFAULTS.find(d => d.id === it.id);
-      if (def && def.stock !== null) {
-        const diff = def.stock - (it.stock ?? def.stock);
-        if (diff !== 0) changes.push({ name: it.name, qty: diff });
-      }
-    });
     setItems(p => p.map(it => {
       const def = DEFAULTS.find(d => d.id === it.id);
       return def ? { ...it, stock: def.stock } : it;
     }));
-    if (sheetsUrl && changes.length) {
-      setSync('syncing');
-      const ok = await pushRestockRows(sheetsUrl, changes, 'Restore original stock');
-      setSync(ok ? 'synced' : 'error');
-    }
   };
 
   // ── derived item lists ───────────────────────────────────────────────────────

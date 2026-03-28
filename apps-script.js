@@ -17,6 +17,8 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'logTransaction') {
       logRows(data.rows);
+    } else if (data.action === 'deleteTransactions') {
+      deleteTransactionRows(data.ids);
     }
     return json({ ok: true });
   } catch (err) {
@@ -67,6 +69,18 @@ function setup() {
   const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getSheet(ss);
   Logger.log('Setup complete. Sheet: ' + sheet.getName() + ' in ' + ss.getName());
+}
+
+function deleteTransactionRows(ids) {
+  const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getSheet(ss);
+  const idSet = new Set(ids.map(String));
+  // iterate bottom-up so row deletion doesn't shift indices
+  for (let r = sheet.getLastRow(); r >= 2; r--) {
+    if (idSet.has(String(sheet.getRange(r, 1).getValue()))) {
+      sheet.deleteRow(r);
+    }
+  }
 }
 
 function json(data) {
