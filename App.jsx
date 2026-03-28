@@ -61,6 +61,25 @@ async function pushSheets(url, txn) {
   } catch { return false; }
 }
 
+async function pushRestockRows(url, restockItems, note) {
+  if (!url || !restockItems.length) return false;
+  try {
+    const ts  = new Date().toISOString();
+    const tid = 'RESTOCK-' + Date.now();
+    const rows = restockItems.map(r => ({
+      transaction_id: tid, timestamp: ts,
+      item_name: r.name, quantity: r.qty, unit_price: 0, line_total: 0,
+      payment_method: 'RESTOCK', note: note || 'Stock restored', synced_at: ts
+    }));
+    await fetch(url, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ action: 'logTransaction', rows })
+    });
+    return true;
+  } catch { return false; }
+}
+
 // ── SVG nav icons ─────────────────────────────────────────────────────────────
 const Icon = {
   items: () => (
@@ -268,12 +287,20 @@ function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
 }
 
 // ── LogView ───────────────────────────────────────────────────────────────────
-function LogView({ txns }) {
-  const [filter, setFilter] = useState('all');
-  const [exp, setExp] = useState(null);
+function LogView({ txns, onEditTxn, onDeleteTxn }) {
+  const [filter,      setFilter]      = useState('all');
+  const [exp,         setExp]         = useState(null);
+  const [editingNote, setEditingNote] = useState('');
+
   const rows = useMemo(() => txns
     .filter(x => isToday(x.ts) && (filter === 'all' || x.pay === filter))
     .sort((a, b) => b.ts - a.ts), [txns, filter]);
+
+  const toggle = tx => {
+    if (exp === tx.id) { setExp(null); }
+    else { setExp(tx.id); setEditingNote(tx.note || ''); }
+  };
+
   return (
     <div>
       <div className="fbar">
@@ -291,10 +318,10 @@ function LogView({ txns }) {
       )}
       {rows.map(tx => {
         const open = exp === tx.id;
-        const sum = tx.items.map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ');
+        const sum  = tx.items.map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ');
         return (
-          <div className="txrow" key={tx.id} onClick={() => setExp(open ? null : tx.id)}>
-            <div className="txmain">
+          <div className="txrow" key={tx.id}>
+            <div className="txmain" onClick={() => toggle(tx)}>
               <span className="txtime">{tstr(tx.ts)}</span>
               <div className="txinfo">
                 <div className="txsum">{sum}</div>
@@ -305,14 +332,36 @@ function LogView({ txns }) {
                 <span className="tx-pay" style={{ color: PC[tx.pay] }}>{PAY_LABEL[tx.pay]}</span>
               </div>
             </div>
-            <div className={`txlines${open ? ' open' : ''}`}>
-              {tx.items.map((it, i) => (
-                <div className="txli" key={i}>
-                  <span>{it.name} ×{it.qty}</span>
-                  <span>{fmt(it.lt)}</span>
+            {open && (
+              <div className="tx-edit">
+                <div className="tx-edit-lines">
+                  {tx.items.map((it, i) => (
+                    <div className="txli" key={i}>
+                      <span>{it.name} ×{it.qty}</span>
+                      <span>{fmt(it.lt)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                <div className="pay-pills tx-edit-pay">
+                  {['venmo', 'zelle', 'cash'].map(m => (
+                    <button key={m} className={`ppill${tx.pay === m ? ` s-${m}` : ''}`}
+                      onClick={() => onEditTxn(tx.id, { pay: m })}>
+                      {PAY_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="note-input"
+                  placeholder="Note (optional)"
+                  value={editingNote}
+                  onChange={e => setEditingNote(e.target.value)}
+                  onBlur={() => onEditTxn(tx.id, { note: editingNote })}
+                />
+                <button className="tx-delete-btn" onClick={() => { onDeleteTxn(tx.id); setExp(null); }}>
+                  Delete Transaction
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
@@ -629,11 +678,31 @@ export default function App() {
     setUndoTxn(null);
   };
 
-  const resetToday = () => {
+  const editTxn = (id, changes) => {
+    setTxns(p => p.map(t => t.id === id ? { ...t, ...changes } : t));
+  };
+
+  const deleteTxn = id => {
+    if (!confirm('Delete this transaction and restore its stock?')) return;
+    const txn = txns.find(t => t.id === id);
+    if (!txn) return;
+    setItems(p => p.map(it => {
+      const s = txn.items.find(i => i.id === it.id);
+      if (s && it.stock !== null) return { ...it, stock: it.stock + s.qty };
+      return it;
+    }));
+    setTxns(p  => p.filter(t => t.id !== id));
+    setQueue(p => p.filter(t => t.id !== id));
+  };
+
+  const resetToday = async () => {
     if (!confirm("Reset today's sales and restore stock?")) return;
     const todayTxns = txns.filter(x => isToday(x.ts));
-    const sold = {};
-    todayTxns.forEach(txn => txn.items.forEach(it => { sold[it.id] = (sold[it.id] || 0) + it.qty; }));
+    const sold = {}; const soldNames = {};
+    todayTxns.forEach(txn => txn.items.forEach(it => {
+      sold[it.id]      = (sold[it.id] || 0) + it.qty;
+      soldNames[it.id] = it.name;
+    }));
     setItems(p => p.map(it => {
       const qty = sold[it.id] || 0;
       if (qty > 0 && it.stock !== null) return { ...it, stock: it.stock + qty };
@@ -641,14 +710,35 @@ export default function App() {
     }));
     setTxns(p => p.filter(x => !isToday(x.ts)));
     setUndoTxn(null);
+    if (sheetsUrl) {
+      const restockItems = Object.entries(sold).map(([id, qty]) => ({ name: soldNames[id], qty }));
+      if (restockItems.length) {
+        setSync('syncing');
+        const ok = await pushRestockRows(sheetsUrl, restockItems, "Reset today's sales");
+        setSync(ok ? 'synced' : 'error');
+      }
+    }
   };
 
-  const restoreOriginalStock = () => {
+  const restoreOriginalStock = async () => {
     if (!confirm("Restore all stock to original counts from the spreadsheet?")) return;
+    const changes = [];
+    items.forEach(it => {
+      const def = DEFAULTS.find(d => d.id === it.id);
+      if (def && def.stock !== null) {
+        const diff = def.stock - (it.stock ?? def.stock);
+        if (diff !== 0) changes.push({ name: it.name, qty: diff });
+      }
+    });
     setItems(p => p.map(it => {
       const def = DEFAULTS.find(d => d.id === it.id);
       return def ? { ...it, stock: def.stock } : it;
     }));
+    if (sheetsUrl && changes.length) {
+      setSync('syncing');
+      const ok = await pushRestockRows(sheetsUrl, changes, 'Restore original stock');
+      setSync(ok ? 'synced' : 'error');
+    }
   };
 
   // ── derived item lists ───────────────────────────────────────────────────────
@@ -704,7 +794,7 @@ export default function App() {
             )}
           </div>
         )}
-        {tab === 'log'   && <LogView txns={txns} />}
+        {tab === 'log'   && <LogView txns={txns} onEditTxn={editTxn} onDeleteTxn={deleteTxn} />}
         {tab === 'sum'   && <SummaryView txns={txns} />}
         {tab === 'admin' && (
           <AdminView
