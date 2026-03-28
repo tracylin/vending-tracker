@@ -831,7 +831,7 @@ export default function App() {
             ) : (
               <>
                 <div className="sort-bar">
-                  <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN First</button>
+                  <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN</button>
                   <button className={`sort-btn${sortStock ? ' on' : ''}`} onClick={() => setSortStock(v => !v)}>Stock</button>
                 </div>
                 {inStockItems.map(item => (
