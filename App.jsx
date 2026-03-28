@@ -82,7 +82,7 @@ function ItemRow({ item, cqty, onAdd, onSub }) {
       <span className="ir-emoji">{item.emoji}</span>
       <div className="ir-info">
         <span className="ir-name">{item.name}</span>
-        {item.stock !== null && <span className={`ir-stock${low ? ' warn' : ''}`}>{oos ? 'sold out' : `${item.stock} left`}</span>}
+        {item.stock !== null && <span className={`ir-stock${oos ? ' oos-label' : low ? ' warn' : ''}`}>{oos ? 'sold out' : `${item.stock} left`}</span>}
       </div>
       <span className="ir-price">{fmt(item.price)}</span>
       <div className="ir-ctrl">
@@ -164,7 +164,7 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
 
 // ── UndoToast ─────────────────────────────────────────────────────────────────
 function UndoToast({ txn, onUndo, onDone }) {
-  const [s, setS] = useState(30);
+  const [s, setS] = useState(15);
   useEffect(() => {
     const t = setInterval(() => setS(v => { if (v <= 1) { clearInterval(t); onDone(); return 0; } return v - 1; }), 1000);
     return () => clearInterval(t);
@@ -322,7 +322,7 @@ function SummaryView({ txns }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ items, sheetsUrl, setSheetsUrl, txns, onReset }) {
+function AdminView({ items, sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock }) {
   const [url, setUrl] = useState(sheetsUrl);
   const todayN = txns.filter(x => isToday(x.ts)).length;
   return (
@@ -345,9 +345,13 @@ function AdminView({ items, sheetsUrl, setSheetsUrl, txns, onReset }) {
         <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
         <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save URL</button></div>
       </div>
+      <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
+      <div className="abox">
+        <button className="btn-restore" onClick={onRestoreStock}>Restore Original Stock (from spreadsheet)</button>
+      </div>
       <div className="asec-hdr"><span className="asec-lbl">Danger</span></div>
       <div className="abox">
-        <button className="btn-danger" onClick={onReset}>Reset Today's Sales ({todayN} transaction{todayN !== 1 ? 's' : ''})</button>
+        <button className="btn-danger" onClick={onReset}>Reset Today's Sales + Restock ({todayN} transaction{todayN !== 1 ? 's' : ''})</button>
       </div>
     </div>
   );
@@ -507,9 +511,25 @@ export default function App() {
   };
 
   const resetToday = () => {
-    if (!confirm("Reset all of today's sales?")) return;
+    if (!confirm("Reset today's sales and restore stock?")) return;
+    const todayTxns = txns.filter(x => isToday(x.ts));
+    const sold = {};
+    todayTxns.forEach(txn => txn.items.forEach(it => { sold[it.id] = (sold[it.id] || 0) + it.qty; }));
+    setItems(p => p.map(it => {
+      const qty = sold[it.id] || 0;
+      if (qty > 0 && it.stock !== null) return { ...it, stock: it.stock + qty };
+      return it;
+    }));
     setTxns(p => p.filter(x => !isToday(x.ts)));
     setUndoTxn(null);
+  };
+
+  const restoreOriginalStock = () => {
+    if (!confirm("Restore all stock to original counts from the spreadsheet?")) return;
+    setItems(p => p.map(it => {
+      const def = DEFAULTS.find(d => d.id === it.id);
+      return def ? { ...it, stock: def.stock } : it;
+    }));
   };
 
   const activeItems = editMode ? editDraft : items.filter(i => i.active);
@@ -534,7 +554,7 @@ export default function App() {
         )}
         {tab === 'log' && <LogView txns={txns} />}
         {tab === 'sum' && <SummaryView txns={txns} />}
-        {tab === 'admin' && <AdminView items={items} sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl} txns={txns} onReset={resetToday} />}
+        {tab === 'admin' && <AdminView items={items} sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl} txns={txns} onReset={resetToday} onRestoreStock={restoreOriginalStock} />}
       </div>
 
       {!editMode && (

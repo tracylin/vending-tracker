@@ -30,7 +30,7 @@ function doGet() {
 }
 
 function logRows(rows) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getSheet(ss);
   const vals  = rows.map(r => [
     r.transaction_id,
@@ -59,6 +59,14 @@ function getSheet(ss) {
     s.setColumnWidth(8, 220);
   }
   return s;
+}
+
+// Run this manually once from the Apps Script editor to create the Sales tab
+// and confirm the script has permission to access the spreadsheet.
+function setup() {
+  const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getSheet(ss);
+  Logger.log('Setup complete. Sheet: ' + sheet.getName() + ' in ' + ss.getName());
 }
 
 function json(data) {
