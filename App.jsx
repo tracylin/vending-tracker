@@ -123,7 +123,7 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
     <div className="cp">
       <div className="cp-handle" onClick={() => setExpanded(e => !e)}>
         <span className="cp-sum"><strong>{count} item{count !== 1 ? 's' : ''}</strong> · {fmt(total)}</span>
-        <span className="cp-arrow">{expanded ? '▼' : '▲'}</span>
+        <span className="cp-arrow">{expanded ? '↓' : '↑'}</span>
       </div>
       {expanded && (
         <div className="cp-body">
@@ -208,7 +208,7 @@ function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
               <button className="btn-done" onClick={onDone}>Done</button>
             </>
           : <>
-              <span className="hdr-title">🛍️ Vending Tracker</span>
+              <span className="hdr-title">Vending Tracker</span>
               <div className="hdr-edit-btns">
                 <button className="btn-edit" onClick={onEdit}>Edit</button>
                 <button className={`sync sync-${sync}`} onClick={sync === 'error' ? onRetry : undefined}>
