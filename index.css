@@ -59,7 +59,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .item-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--bd);transition:background 220ms ease;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .item-row.flash{background:var(--ac2)}
 .item-row.oos{opacity:.35}
-.ir-emoji{font-size:20px;flex-shrink:0;width:28px;text-align:center;line-height:1}
 .ir-info{flex:1;min-width:0}
 .ir-name{font-size:14px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1);letter-spacing:-.1px}
 .ir-stock{font-size:12px;color:var(--t2);display:block;margin-top:2px;font-weight:400}
@@ -78,18 +77,24 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .qnum{font-size:14px;font-weight:700;min-width:24px;text-align:center;color:var(--t1);font-variant-numeric:tabular-nums}
 
 /* ── edit mode rows ── */
-.edit-row{padding:12px 16px;border-bottom:1px solid var(--bd);background:var(--s1)}
+.edit-row{padding:11px 16px;border-bottom:1px solid var(--bd);background:var(--s1)}
 .er-line1{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.er-emoji{width:44px;text-align:center;font-size:20px;padding:6px 4px;border-radius:var(--r2)}
+.er-moves{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.er-move{width:26px;height:22px;border-radius:5px;background:var(--s3);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;transition:background 100ms,color 100ms;font-weight:600}
+.er-move:disabled{opacity:.2;pointer-events:none}
+.er-move:not(:disabled):active{background:var(--ac);color:#fff}
 .er-name{flex:1;font-size:14px;font-weight:500}
-.er-line2{display:flex;align-items:center;gap:8px;padding-left:52px}
+.er-del{color:var(--dn);font-size:14px;opacity:.6;padding:6px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.er-del:active{opacity:1}
+.er-line2{display:flex;align-items:center;gap:8px;padding-left:34px}
 .er-lbl{font-size:12px;color:var(--t2);flex-shrink:0;font-weight:500}
 .er-price{width:72px;font-size:14px;font-weight:600}
 .er-stock{width:64px;font-size:14px}
-.er-del{margin-left:auto;color:var(--dn);font-size:18px;opacity:.65;padding:6px;min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center}
-.er-del:active{opacity:1}
 .btn-add-item{display:block;width:calc(100% - 32px);margin:12px 16px;padding:12px;border-radius:var(--r2);background:transparent;border:1.5px dashed var(--bd);color:var(--t3);font-size:14px;font-weight:600;text-align:center;transition:border-color 140ms,color 140ms;letter-spacing:.1px}
 .btn-add-item:active{border-color:var(--ac);color:var(--ac)}
+
+/* ── sold out section ── */
+.section-divider{padding:8px 16px;font-size:11px;font-weight:700;color:var(--dn);text-transform:uppercase;letter-spacing:1.2px;background:var(--s1);border-bottom:1px solid var(--bd);border-top:2px solid var(--bd);margin-top:4px}
 
 /* ── cart panel ── */
 .cp{background:var(--s1);border-top:1.5px solid var(--bd);flex-shrink:0}
@@ -159,6 +164,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .txnote{font-size:12px;color:var(--t2);margin-top:2px;font-style:italic}
 .txr{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
 .txtot{font-size:14px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.tx-pay{font-size:11px;font-weight:600;text-transform:capitalize;letter-spacing:.2px}
 .txlines{overflow:hidden;max-height:0;transition:max-height 200ms ease-out}
 .txlines.open{max-height:300px}
 .txli{font-size:13px;color:var(--t2);padding:3px 0 3px 50px;display:flex;justify-content:space-between}
