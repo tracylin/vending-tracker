@@ -71,6 +71,15 @@ function pushItemsSync(url, items) {
   }).catch(() => {});
 }
 
+function pushPaymentUpdate(url, id, pay) {
+  if (!url) return;
+  fetch(url, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ action: 'updatePayment', id, pay })
+  }).catch(() => {});
+}
+
 async function pushDeleteTransactions(url, ids) {
   if (!url || !ids.length) return false;
   try {
@@ -521,6 +530,7 @@ export default function App() {
       if (!live) return;
       setQueue(fail);
       setSync(fail.length ? 'error' : 'synced');
+      if (!fail.length) pushItemsSync(sheetsUrl, items);
     })();
     return () => { live = false; };
   }, [sheetsUrl, queue.length]);
@@ -690,10 +700,12 @@ export default function App() {
     setQueue(p => p.filter(t => t.id !== txn.id));
     setUndoTxn(null);
     pushItemsSync(sheetsUrl, newItems);
+    pushDeleteTransactions(sheetsUrl, [txn.id]);
   };
 
   const editTxn = (id, changes) => {
     setTxns(p => p.map(t => t.id === id ? { ...t, ...changes } : t));
+    if (changes.pay) pushPaymentUpdate(sheetsUrl, id, changes.pay);
   };
 
   const deleteTxn = id => {
@@ -709,6 +721,7 @@ export default function App() {
     setTxns(p  => p.filter(t => t.id !== id));
     setQueue(p => p.filter(t => t.id !== id));
     pushItemsSync(sheetsUrl, newItems);
+    pushDeleteTransactions(sheetsUrl, [id]);
   };
 
   const resetToday = async () => {

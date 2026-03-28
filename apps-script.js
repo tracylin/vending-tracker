@@ -21,6 +21,8 @@ function doPost(e) {
       deleteTransactionRows(data.ids);
     } else if (data.action === 'syncItems') {
       syncItemsSheet(data.items);
+    } else if (data.action === 'updatePayment') {
+      updatePaymentMethod(data.id, data.pay);
     }
     return json({ ok: true });
   } catch (err) {
@@ -98,6 +100,17 @@ function getItemsSheet(ss) {
     s.setColumnWidth(4, 180);
   }
   return s;
+}
+
+function updatePaymentMethod(id, pay) {
+  const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getSheet(ss);
+  const idStr = String(id);
+  for (let r = 2; r <= sheet.getLastRow(); r++) {
+    if (String(sheet.getRange(r, 1).getValue()) === idStr) {
+      sheet.getRange(r, 7).setValue(pay); // column 7 = payment_method
+    }
+  }
 }
 
 function deleteTransactionRows(ids) {
