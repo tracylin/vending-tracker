@@ -12,37 +12,43 @@ const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
 const DEFAULTS = [
-  { id:  '1', name: 'Three Stories',                               price: 22, stock: 6,    active: true },
-  { id:  '2', name: '51人：第十一届上海双年展项目',                     price: 16, stock: null, active: true },
-  { id:  '3', name: 'The Village of Proof 证据村',                   price: 15, stock: null, active: true },
-  { id:  '4', name: 'Blue Jean Pocket Writers Handbook',            price: 6,  stock: null, active: true },
-  { id:  '5', name: '51 Personae: Tarwewijk',                       price: 22, stock: 4,    active: true },
-  { id:  '6', name: 'Seed of Memory',                               price: 20, stock: 6,    active: true },
-  { id:  '7', name: '温州记 Journey to Wenzhou',                     price: 17, stock: 5,    active: true },
-  { id:  '8', name: '墙洞 Hole in the Wall',                        price: 12, stock: 6,    active: true },
-  { id:  '9', name: '卡拉什尼科夫 Kalashnikov',                      price: 22, stock: 5,    active: true },
-  { id: '10', name: '飞鸟与工厂',                                    price: 25, stock: null, active: true },
-  { id: '11', name: '51摊 51 Tan (a set of three)',                  price: 22, stock: 5,    active: true },
-  { id: '12', name: 'Stand With Her woodcut journal',               price: 12, stock: null, active: true },
-  { id: '13', name: 'Deep Simulator 深渊模拟器',                     price: 26, stock: 4,    active: true },
-  { id: '14', name: 'Beijing Underground',                          price: 15, stock: 6,    active: true },
-  { id: '15', name: '无苦无忧 No Misery',                            price: 42, stock: null, active: true },
-  { id: '16', name: 'Working Class History 2026 挂历',               price: 12, stock: null, active: true },
-  { id: '17', name: '亚际木刻版画 Inter Asia Woodcut Mapping 第四期',  price: 20, stock: null, active: true },
-  { id: '18', name: '飞鸟与工厂 版画一套12张',                        price: 9,  stock: null, active: true },
-  { id: '19', name: '洋槐树下的学堂',                                price: 23, stock: 3,    active: true },
-  { id: '20', name: '别处的月光',                                    price: 22, stock: 2,    active: true },
-  { id: '21', name: '旅行者的欲望',                                   price: 18, stock: null, active: true },
-  { id: '22', name: '马来素描',                                      price: 23, stock: 2,    active: true },
-  { id: '23', name: '碧曲口述',                                      price: 13, stock: null, active: true },
-  { id: '24', name: 'A3BC',                                         price: 15, stock: null, active: true },
-  { id: '25', name: '利雅得七天',                                    price: 10, stock: 3,    active: true },
-  { id: '26', name: '口袋里有个红街市',                               price: 12, stock: null, active: true },
-  { id: '27', name: '每日的工人阶级史',                               price: 22, stock: 1,    active: true },
-  { id: '28', name: '新加坡华族木偶戏',                               price: 48, stock: 2,    active: true },
-  { id: '29', name: '艺术档案（库）的可能与不可能',                     price: 30, stock: 3,    active: true },
-  { id: '30', name: '第十一号',                                      price: 18, stock: 2,    active: true },
+  { id: 'oa01', name: 'Three Stories',                                                        lang: 'CN/EN',    price: 22, stock: 6,    active: true },
+  { id: 'oa02', name: '51人：第十一届上海双年展项目',                                            lang: 'CN/EN',    price: 16, stock: null, active: true },
+  { id: 'oa03', name: 'The Village of Proof 证据村',                                           lang: 'CN/EN',    price: 15, stock: null, active: true },
+  { id: 'oa04', name: 'The Village of Proof (Zine英文版）',                                    lang: 'EN',       price: 10, stock: null, active: true },
+  { id: 'oa05', name: 'Blue Jean Pocket Writers Handbook',                                    lang: 'EN',       price: 6,  stock: null, active: true },
+  { id: 'oa06', name: '51 Personae: Tarwewijk',                                               lang: 'CN/EN/NL', price: 22, stock: 4,    active: true },
+  { id: 'oa07', name: 'Seed of Memory',                                                       lang: 'EN',       price: 20, stock: null, active: true },
+  { id: 'oa08', name: '温州记 Journey to Wenzhou',                                             lang: 'CN/EN',    price: 17, stock: null, active: true },
+  { id: 'oa09', name: '墙洞 Hole in the Wall',                                                lang: 'CN/EN/JP', price: 12, stock: 6,    active: true },
+  { id: 'oa10', name: '卡拉什尼科夫 Kalashnikov',                                              lang: 'CN/EN/JP', price: 22, stock: 5,    active: true },
+  { id: 'oa11', name: 'Of Birds and Factories',                                               lang: 'EN',       price: 25, stock: null, active: true },
+  { id: 'oa12', name: '飞鸟与工厂',                                                            lang: 'CN',       price: 25, stock: null, active: true },
+  { id: 'oa13', name: '51摊 51 Tan (a set of three)',                                          lang: 'CN/EN',    price: 22, stock: 5,    active: true },
+  { id: 'oa14', name: 'Stand With Her woodcut journal',                                       lang: 'EN',       price: 12, stock: null, active: true },
+  { id: 'oa15', name: 'Deep Simulator 深渊模拟器',                                             lang: 'CN/EN',    price: 26, stock: 4,    active: true },
+  { id: 'oa16', name: 'Beijing Underground',                                                  lang: 'EN/JP',    price: 15, stock: 6,    active: true },
+  { id: 'oa17', name: '无苦无忧 No Misery',                                                    lang: 'CN/EN/JP', price: 42, stock: 1,    active: true },
+  { id: 'oa18', name: 'Working Class History 2026 挂历',                                       lang: 'EN',       price: 12, stock: null, active: true },
+  { id: 'oa19', name: '亚际木刻版画Inter Asia Woodcut Mapping 第四期',                          lang: 'CN/EN',    price: 20, stock: null, active: true },
+  { id: 'oa20', name: '亚际木刻版画Inter Asia Woodcut Mapping 第五期',                          lang: 'CN/EN',    price: 20, stock: null, active: true },
+  { id: 'oa21', name: '飞鸟与工厂 版画一套12张',                                                lang: 'CN/EN',    price: 9,  stock: null, active: true },
+  { id: 'oa22', name: '洋槐树下的学堂',                                                        lang: 'CN',       price: 23, stock: 3,    active: true },
+  { id: 'oa23', name: '别处的月光',                                                            lang: 'CN',       price: 22, stock: 2,    active: true },
+  { id: 'oa24', name: '旅行者的欲望',                                                          lang: 'CN',       price: 18, stock: null, active: true },
+  { id: 'oa25', name: '马来素描',                                                              lang: 'CN',       price: 23, stock: 2,    active: true },
+  { id: 'oa26', name: '碧曲口述',                                                              lang: 'CN',       price: 13, stock: null, active: true },
+  { id: 'oa27', name: 'A3BC',                                                                 lang: 'EN/JP',    price: 15, stock: null, active: true },
+  { id: 'oa28', name: '利雅得七天',                                                            lang: 'CN',       price: 10, stock: 3,    active: true },
+  { id: 'oa29', name: '口袋里有个红街市',                                                       lang: 'CN',       price: 12, stock: null, active: true },
+  { id: 'oa30', name: "普氏野马Przewalski's Horse版画Riso海报",                                 lang: 'CN',       price: 12, stock: null, active: true },
+  { id: 'oa31', name: '每日的工人阶级史',                                                       lang: 'CN',       price: 22, stock: 1,    active: true },
+  { id: 'oa32', name: '新加坡华族木偶戏',                                                       lang: 'EN',       price: 48, stock: 2,    active: true },
+  { id: 'oa33', name: '艺术档案（库）的可能与不可能',                                             lang: 'CN',       price: 30, stock: 3,    active: true },
+  { id: 'oa34', name: '第十一号',                                                              lang: 'CN',       price: 18, stock: 2,    active: true },
 ];
+
+const isENFirst = lang => !!lang && (lang === 'EN' || lang.startsWith('EN/'));
 
 async function pushSheets(url, txn) {
   if (!url) return false;
@@ -136,7 +142,10 @@ function ItemRow({ item, cqty, onAdd, onSub }) {
   return (
     <div className={`item-row${flash ? ' flash' : ''}${oos ? ' oos' : ''}`}>
       <div className="ir-info">
-        <span className="ir-name">{item.name}</span>
+        <div className="ir-name-row">
+          <span className="ir-name">{item.name}</span>
+          {item.lang && <span className={`lang-tag${isENFirst(item.lang) ? ' en' : ''}`}>{item.lang}</span>}
+        </div>
         {item.stock !== null && (
           <span className={`ir-stock${oos ? ' oos-label' : low ? ' warn' : ''}`}>
             {oos ? 'sold out' : `${item.stock} left`}
@@ -439,7 +448,7 @@ function SummaryView({ txns }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onLoadDefaults }) {
   const [url, setUrl] = useState(sheetsUrl);
   const todayN = txns.filter(x => isToday(x.ts)).length;
   return (
@@ -453,6 +462,11 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock }) {
       <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
       <div className="abox">
         <button className="btn-restore" onClick={onRestoreStock}>Restore Original Stock Counts</button>
+      </div>
+      <div className="asec-hdr"><span className="asec-lbl">Items</span></div>
+      <div className="abox">
+        <button className="btn-restore" onClick={onLoadDefaults}>Load Default Item List</button>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Replaces all items with the baked-in list. Sales history kept.</div>
       </div>
       <div className="asec-hdr"><span className="asec-lbl">Danger Zone</span></div>
       <div className="abox">
@@ -758,9 +772,19 @@ export default function App() {
     pushItemsSync(sheetsUrl, newItems);
   };
 
+  const loadDefaultItems = () => {
+    if (!confirm("Replace all items with the default list? Your sales history is kept.")) return;
+    setItems(DEFAULTS);
+    pushItemsSync(sheetsUrl, DEFAULTS);
+  };
+
   // ── derived item lists ───────────────────────────────────────────────────────
-  const inStockItems = items.filter(i => i.active && (i.stock === null || i.stock > 0));
-  const oosItems     = items.filter(i => i.active && i.stock !== null && i.stock <= 0);
+  const langSort = arr => [...arr].sort((a, b) => {
+    const ae = isENFirst(a.lang), be = isENFirst(b.lang);
+    return ae === be ? 0 : ae ? -1 : 1;
+  });
+  const inStockItems = langSort(items.filter(i => i.active && (i.stock === null || i.stock > 0)));
+  const oosItems     = langSort(items.filter(i => i.active && i.stock !== null && i.stock <= 0));
 
   return (
     <>
@@ -816,7 +840,7 @@ export default function App() {
         {tab === 'admin' && (
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
-            txns={txns} onReset={resetToday} onRestoreStock={restoreOriginalStock}
+            txns={txns} onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
           />
         )}
       </div>
