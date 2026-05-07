@@ -11,6 +11,8 @@ const isToday = ts => new Date(ts).toDateString() === new Date().toDateString();
 const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
+const CATALOG_VERSION = 2;  // bump this to force-refresh items on all devices
+
 const DEFAULTS = [
   { id: 'oa01', name: 'Three Stories 三个故事',                                                lang: 'CN/EN',    price: 22, stock: 10,   active: true },
   { id: 'oa02', name: '51人：第十一届上海双年展项目',                                            lang: 'CN/EN',    price: 16, stock: 10,   active: true },
@@ -499,7 +501,11 @@ function Nav({ tab, set }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [items,      setItems]      = useState(() => ld('vt_items', DEFAULTS));
+  const [items,      setItems]      = useState(() => {
+    const savedVer = ld('vt_catalog_ver', 0);
+    if (savedVer < CATALOG_VERSION) { sv('vt_catalog_ver', CATALOG_VERSION); return DEFAULTS; }
+    return ld('vt_items', DEFAULTS);
+  });
   const [txns,       setTxns]       = useState(() => ld('vt_txns', []));
   const [cart,       setCart]       = useState([]);
   const [tab,        setTab]        = useState('items');
