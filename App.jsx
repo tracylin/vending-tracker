@@ -11,7 +11,7 @@ const isToday = ts => new Date(ts).toDateString() === new Date().toDateString();
 const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
-const CATALOG_VERSION = 2;  // bump this to force-refresh items on all devices
+const CATALOG_VERSION = 3;  // bump this to force-refresh items on all devices
 
 const DEFAULTS = [
   { id: 'oa01', name: 'Three Stories 三个故事',                                                lang: 'CN/EN',    price: 22, stock: 10,   active: true },
@@ -24,10 +24,10 @@ const DEFAULTS = [
   { id: 'oa09', name: '墙洞 Hole in the Wall',                                                lang: 'CN/EN/JP', price: 12, stock: 8,    active: true },
   { id: 'oa10', name: '卡拉什尼科夫 Kalashnikov',                                              lang: 'CN/EN/JP', price: 22, stock: 8,    active: true },
   { id: 'oa04', name: '卡门 Carmen',                                                           lang: 'CN/EN/JP', price: 18, stock: 10,   active: true },
-  { id: 'oa12', name: '乞丐漫画（1）',                                                          lang: 'CN',       price: 10, stock: null, active: true },
+  { id: 'oa12', name: '乞丐漫画（1）',                                                          lang: 'CN',       price: 10, stock: 0,    active: true },
   { id: 'oa17', name: '乞丐漫画（2）',                                                          lang: 'CN',       price: 10, stock: 5,    active: true },
   { id: 'oa24', name: '乞丐漫画（3）',                                                          lang: 'CN',       price: 10, stock: 5,    active: true },
-  { id: 'oa26', name: '拼贴',                                                                  lang: 'CN/EN',    price: 22, stock: null, active: true },
+  { id: 'oa26', name: '拼贴',                                                                  lang: 'CN/EN',    price: 22, stock: 0,    active: true },
   { id: 'oa11', name: 'Of Birds and Factories',                                               lang: 'EN',       price: 25, stock: 10,   active: true },
   { id: 'oa13', name: '51摊 51 Tan (a set of three)',                                          lang: 'CN/EN',    price: 22, stock: 9,    active: true },
   { id: 'oa14', name: 'Stand With Her woodcut journal',                                       lang: 'EN',       price: 12, stock: 10,   active: true },
@@ -36,7 +36,7 @@ const DEFAULTS = [
   { id: 'oa18', name: 'Working Class History 2026 挂历',                                       lang: 'EN',       price: 10, stock: 1,    active: true },
   { id: 'oa19', name: '亚际木刻版画Inter Asia Woodcut Mapping 第四期',                          lang: 'CN/EN',    price: 20, stock: 3,    active: true },
   { id: 'oa20', name: '亚际木刻版画Inter Asia Woodcut Mapping 第五期',                          lang: 'CN/EN',    price: 20, stock: 3,    active: true },
-  { id: 'oa31', name: '亚际木刻版画Inter Asia Woodcut Mapping 第六期',                          lang: 'CN/EN',    price: 20, stock: null, active: true },
+  { id: 'oa31', name: '亚际木刻版画Inter Asia Woodcut Mapping 第六期',                          lang: 'CN/EN',    price: 20, stock: 0,    active: true },
   { id: 'oa21', name: '飞鸟与工厂 版画一套12张',                                                lang: 'CN/EN',    price: 9,  stock: 10,   active: true },
   { id: 'oa27', name: 'A3BC',                                                                 lang: 'EN/JP',    price: 15, stock: 3,    active: true },
   { id: 'oa28', name: '利雅得七天',                                                            lang: 'CN',       price: 10, stock: 5,    active: true },
@@ -44,9 +44,9 @@ const DEFAULTS = [
   { id: 'oa22', name: '洋槐树下的学堂',                                                        lang: 'CN',       price: 23, stock: 5,    active: true },
   { id: 'oa23', name: '别处的月光',                                                            lang: 'CN',       price: 22, stock: 5,    active: true },
   { id: 'oa25', name: '马来素描',                                                              lang: 'CN',       price: 23, stock: 5,    active: true },
-  { id: 'oa34', name: '第十一号',                                                              lang: 'CN',       price: 18, stock: null, active: true },
-  { id: 'oa33', name: '艺术档案库的可能与不可能',                                                lang: 'CN',       price: 28, stock: null, active: true },
-  { id: 'oa30', name: "普氏野马Przewalski's Horse版画Riso海报",                                 lang: 'CN',       price: 12, stock: null, active: true },
+  { id: 'oa34', name: '第十一号',                                                              lang: 'CN',       price: 18, stock: 0,    active: true },
+  { id: 'oa33', name: '艺术档案库的可能与不可能',                                                lang: 'CN',       price: 28, stock: 0,    active: true },
+  { id: 'oa30', name: "普氏野马Przewalski's Horse版画Riso海报",                                 lang: 'CN',       price: 12, stock: 0,    active: true },
 ];
 
 const isENFirst = lang => !!lang && (lang === 'EN' || lang.startsWith('EN/'));
