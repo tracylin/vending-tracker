@@ -11,7 +11,7 @@ const isToday = ts => new Date(ts).toDateString() === new Date().toDateString();
 const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
-const CATALOG_VERSION = 3;  // bump this to force-refresh items on all devices
+const CATALOG_VERSION = 4;  // bump this to force-refresh items on all devices
 
 const DEFAULTS = [
   { id: 'oa01', name: 'Three Stories 三个故事',                                                lang: 'CN/EN',    price: 22, stock: 10,   active: true },
@@ -68,14 +68,26 @@ async function pushSheets(url, txn) {
   } catch { return false; }
 }
 
-function pushItemsSync(url, items) {
+const DEVICE_ID = ld('vt_device', '') || (() => { const d = 'device-' + Math.random().toString(36).slice(2, 6); sv('vt_device', d); return d; })();
+
+function pushItemsSync(url, items, explicit) {
   if (!url) return;
-  const payload = items.filter(i => i.active).map(i => ({ name: i.name, price: i.price, stock: i.stock }));
+  const payload = items.filter(i => i.active).map(i => ({ id: i.id, name: i.name, price: i.price, stock: i.stock }));
   fetch(url, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body: JSON.stringify({ action: 'syncItems', items: payload })
+    body: JSON.stringify({ action: 'syncItems', items: payload, device: explicit ? DEVICE_ID : undefined })
   }).catch(() => {});
+}
+
+async function pullStockFromSheets(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url + '?action=getStock');
+    const data = await res.json();
+    if (data.ok) return data;
+    return null;
+  } catch { return null; }
 }
 
 function pushPaymentUpdate(url, id, pay) {
@@ -449,7 +461,7 @@ function SummaryView({ txns }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onLoadDefaults }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, syncLog }) {
   const [url, setUrl] = useState(sheetsUrl);
   const todayN = txns.filter(x => isToday(x.ts)).length;
   return (
@@ -460,6 +472,29 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onL
         <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
         <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save</button></div>
       </div>
+      <div className="asec-hdr"><span className="asec-lbl">Stock Sync (Handoff)</span></div>
+      <div className="abox">
+        <div className="albl" style={{marginBottom:8,opacity:.7,fontSize:11}}>Device: {DEVICE_ID}</div>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn-restore" style={{flex:1}} onClick={onPushStock}>Push Stock</button>
+          <button className="btn-restore" style={{flex:1}} onClick={onPullStock}>Pull Stock</button>
+        </div>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock to Sheets before handing off. Pull to load your partner's latest stock.</div>
+      </div>
+      {syncLog.length > 0 && (
+        <>
+          <div className="asec-hdr"><span className="asec-lbl">Sync History</span></div>
+          <div className="abox">
+            {syncLog.slice(0, 10).map((e, i) => (
+              <div key={i} className="sync-log-entry" style={{fontSize:11,padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,.06)',opacity: i === 0 ? 1 : 0.6}}>
+                <span style={{color: e.dir === 'push' ? 'var(--ze)' : 'var(--ve)', fontWeight:600}}>{e.dir === 'push' ? 'PUSH' : 'PULL'}</span>
+                {' '}<span style={{opacity:.7}}>{tstr(e.ts)}</span>
+                {' '}<span style={{opacity:.5}}>({e.device})</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
       <div className="abox">
         <button className="btn-restore" onClick={onRestoreStock}>Restore Original Stock Counts</button>
@@ -523,15 +558,17 @@ export default function App() {
   const [cartBusy,     setCartBusy]     = useState(false);
 
   // sync
-  const [undoTxn,   setUndoTxn]   = useState(null);
-  const [sync,      setSync]       = useState('synced');
+  const [undoTxn,   setUndoTxn]     = useState(null);
+  const [sync,      setSync]        = useState('synced');
+  const [syncLog,   setSyncLog]     = useState(() => ld('vt_synclog', []));
   const [sheetsUrl, setSheetsUrl]  = useState(() => ld('vt_url', 'https://script.google.com/macros/s/AKfycbzypD6gRdRlx1JV-upbp8K1HBAa6LSDR4HOc7pRCvb7C5ZVJMzuS_39IHho9VEtr9pAsQ/exec'));
   const [queue,     setQueue]      = useState(() => ld('vt_q', []));
   const [lastPay,   setLastPay]    = useState(() => ld('vt_lastpay', ''));
 
-  useEffect(() => sv('vt_items', items),    [items]);
-  useEffect(() => sv('vt_txns',  txns),     [txns]);
-  useEffect(() => sv('vt_url',   sheetsUrl),[sheetsUrl]);
+  useEffect(() => sv('vt_items',   items),    [items]);
+  useEffect(() => sv('vt_txns',    txns),     [txns]);
+  useEffect(() => sv('vt_url',     sheetsUrl),[sheetsUrl]);
+  useEffect(() => sv('vt_synclog', syncLog),  [syncLog]);
   useEffect(() => sv('vt_q',     queue),    [queue]);
 
   // flush sync queue
@@ -777,6 +814,30 @@ export default function App() {
     pushItemsSync(sheetsUrl, newItems);
   };
 
+  const pushStock = () => {
+    if (!confirm("Push current stock to Google Sheets? This overwrites the shared stock.")) return;
+    pushItemsSync(sheetsUrl, items, true);
+    const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, summary: items.filter(i => i.active).map(i => i.name + ':' + (i.stock ?? '∞')).join(', ') };
+    setSyncLog(log => [entry, ...log].slice(0, 50));
+  };
+
+  const pullStock = async () => {
+    if (!confirm("Pull stock from Google Sheets? This overwrites your local stock counts.")) return;
+    setSync('syncing');
+    const data = await pullStockFromSheets(sheetsUrl);
+    if (!data || !data.items) { setSync('error'); alert('Failed to pull stock. Check connection.'); return; }
+    const remote = data.items;
+    const newItems = items.map(it => {
+      const match = remote.find(r => r.id === it.id);
+      if (match) return { ...it, stock: match.stock };
+      return it;
+    });
+    setItems(newItems);
+    setSync('synced');
+    const entry = { ts: Date.now(), dir: 'pull', device: DEVICE_ID, summary: remote.map(i => i.name + ':' + (i.stock ?? '∞')).join(', ') };
+    setSyncLog(log => [entry, ...log].slice(0, 50));
+  };
+
   const loadDefaultItems = () => {
     if (!confirm("Replace all items with the default list? Your sales history is kept.")) return;
     setItems(DEFAULTS);
@@ -866,6 +927,7 @@ export default function App() {
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
+            onPushStock={pushStock} onPullStock={pullStock} syncLog={syncLog}
           />
         )}
       </div>

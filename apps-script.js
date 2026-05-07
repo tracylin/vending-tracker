@@ -20,7 +20,7 @@ function doPost(e) {
     } else if (data.action === 'deleteTransactions') {
       deleteTransactionRows(data.ids);
     } else if (data.action === 'syncItems') {
-      syncItemsSheet(data.items);
+      syncItemsSheet(data.items, data.device);
     } else if (data.action === 'updatePayment') {
       updatePaymentMethod(data.id, data.pay);
     }
@@ -30,9 +30,26 @@ function doPost(e) {
   }
 }
 
-// Health check — open the URL in a browser to test connectivity
-function doGet() {
+function doGet(e) {
+  const action = e && e.parameter && e.parameter.action;
+  if (action === 'getStock') return getStockData();
   return json({ ok: true, status: 'connected', time: new Date().toISOString() });
+}
+
+function getStockData() {
+  const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getItemsSheet(ss);
+  const last = sheet.getLastRow();
+  if (last <= 1) return json({ ok: true, items: [], time: new Date().toISOString() });
+  const data = sheet.getRange(2, 1, last - 1, 5).getValues();
+  const items = data.filter(r => r[0]).map(r => ({
+    id: String(r[0]),
+    name: r[1],
+    price: r[2],
+    stock: r[3] === '∞' ? null : Number(r[3]),
+    updated_at: r[4]
+  }));
+  return json({ ok: true, items, time: new Date().toISOString() });
 }
 
 function logRows(rows) {
@@ -76,29 +93,44 @@ function setup() {
   Logger.log('Setup complete. Sales: ' + sales.getName() + ', Items: ' + items.getName() + ' in ' + ss.getName());
 }
 
-function syncItemsSheet(items) {
+function syncItemsSheet(items, device) {
   const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getItemsSheet(ss);
   const last  = sheet.getLastRow();
-  if (last > 1) sheet.getRange(2, 1, last - 1, 4).clearContent();
+  if (last > 1) sheet.getRange(2, 1, last - 1, 5).clearContent();
   if (items && items.length) {
-    const vals = items.map(i => [i.name, i.price, i.stock !== null && i.stock !== undefined ? i.stock : '∞', new Date().toISOString()]);
-    sheet.getRange(2, 1, vals.length, 4).setValues(vals);
+    const vals = items.map(i => [i.id || '', i.name, i.price, i.stock !== null && i.stock !== undefined ? i.stock : '∞', new Date().toISOString()]);
+    sheet.getRange(2, 1, vals.length, 5).setValues(vals);
   }
+  if (device) logStockHistory(ss, items, device);
+}
+
+function logStockHistory(ss, items, device) {
+  let s = ss.getSheetByName('StockHistory');
+  if (!s) {
+    s = ss.insertSheet('StockHistory');
+    s.appendRow(['timestamp', 'device', 'snapshot']);
+    s.setFrozenRows(1);
+    s.getRange(1,1,1,3).setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
+    s.setColumnWidth(1, 180); s.setColumnWidth(2, 120); s.setColumnWidth(3, 600);
+  }
+  const snapshot = (items || []).map(i => i.name + ':' + (i.stock !== null && i.stock !== undefined ? i.stock : '∞')).join(', ');
+  s.appendRow([new Date().toISOString(), device, snapshot]);
 }
 
 function getItemsSheet(ss) {
   let s = ss.getSheetByName('Items');
   if (!s) {
     s = ss.insertSheet('Items');
-    const h = ['name', 'price', 'stock', 'updated_at'];
+    const h = ['id', 'name', 'price', 'stock', 'updated_at'];
     s.appendRow(h);
     s.setFrozenRows(1);
     s.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
-    s.setColumnWidth(1, 260);
-    s.setColumnWidth(2, 80);
+    s.setColumnWidth(1, 60);
+    s.setColumnWidth(2, 260);
     s.setColumnWidth(3, 80);
-    s.setColumnWidth(4, 180);
+    s.setColumnWidth(4, 80);
+    s.setColumnWidth(5, 180);
   }
   return s;
 }
