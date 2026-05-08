@@ -33,7 +33,39 @@ function doPost(e) {
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
   if (action === 'getStock') return getStockData();
+  if (action === 'getTransactions') return getTransactionsData();
   return json({ ok: true, status: 'connected', time: new Date().toISOString() });
+}
+
+function getTransactionsData() {
+  const ss = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
+  const sheet = getSheet(ss);
+  const last = sheet.getLastRow();
+  if (last <= 1) return json({ ok: true, transactions: [], time: new Date().toISOString() });
+  const data = sheet.getRange(2, 1, last - 1, 9).getValues();
+  const byId = {};
+  data.forEach(r => {
+    const tid = r[0];
+    if (!tid) return;
+    const id = String(tid);
+    if (!byId[id]) {
+      byId[id] = {
+        id: id,
+        ts: new Date(r[1]).getTime(),
+        items: [],
+        total: 0,
+        pay: r[6] || '',
+        note: r[7] || '',
+      };
+    }
+    const qty = Number(r[3]) || 0;
+    const up  = Number(r[4]) || 0;
+    const lt  = Number(r[5]) || 0;
+    byId[id].items.push({ name: r[2], qty: qty, up: up, lt: lt });
+    byId[id].total += lt;
+  });
+  const transactions = Object.values(byId).map(t => ({ ...t, total: Math.round(t.total * 100) / 100 }));
+  return json({ ok: true, transactions: transactions, time: new Date().toISOString() });
 }
 
 function getStockData() {
