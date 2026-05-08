@@ -542,7 +542,7 @@ function SummaryView({ txns, eventDay }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, onPullTxns, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
   const [expandedHist, setExpandedHist] = useState(-1);
   const todayN = txns.filter(x => inToday(x, eventDay)).length;
@@ -577,7 +577,8 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestore
           <button className="btn-restore" style={{flex:1}} onClick={onPushStock}>Push Stock</button>
           <button className="btn-restore" style={{flex:1}} onClick={onPullStock}>Pull Stock</button>
         </div>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock to Sheets before handing off. Pull to load your partner's latest stock.</div>
+        <button className="btn-restore" style={{marginTop:8}} onClick={onPullTxns}>Pull Transactions (last 48h)</button>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock to Sheets before handing off. Pull to load your partner's latest stock. Pull Transactions recovers sales history if local data was cleared (tags imports as Day 1).</div>
       </div>
 
       {syncLog.length > 0 && (
@@ -1048,6 +1049,40 @@ export default function App() {
     setSyncLog(log => [entry, ...log].slice(0, 10));
   };
 
+  const pullTransactions = async () => {
+    if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
+    if (!confirm("Pull recent transactions (last 48h) from Google Sheets?\n\nExisting local transactions are kept; only missing ones are added. All imports tagged Day 1.")) return;
+    setSync('syncing');
+    try {
+      const res = await fetch(sheetsUrl + '?action=getTransactions');
+      const data = await res.json();
+      if (!data || !data.transactions) {
+        setSync('error');
+        alert('Endpoint missing or returned no transactions. Make sure Apps Script is updated to the latest apps-script.js (with getTransactions handler) and redeployed.');
+        return;
+      }
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      const recent = data.transactions.filter(t => t.ts >= cutoff);
+      const localIds = new Set(txns.map(t => t.id));
+      const fresh = recent.filter(t => !localIds.has(t.id));
+      if (!fresh.length) {
+        setSync('synced');
+        alert(`No new transactions to import. (${recent.length} recent in Sheets, all already local.)`);
+        return;
+      }
+      fresh.forEach(t => { t.day = 1; t.synced = true; });
+      const merged = [...fresh, ...txns].sort((a, b) => b.ts - a.ts);
+      setTxns(merged);
+      if (eventDay === 0) setEventDay(1);
+      setSync('synced');
+      const sum = fresh.reduce((s, t) => s + t.total, 0);
+      alert(`Imported ${fresh.length} transactions ($${sum.toFixed(2)}), tagged Day 1.`);
+    } catch (e) {
+      setSync('error');
+      alert('Failed: ' + e.message);
+    }
+  };
+
   const restoreSnapshot = idx => {
     const entry = syncLog[idx];
     if (!entry || (!entry.txns && !entry.itemsSnap)) return;
@@ -1157,7 +1192,7 @@ export default function App() {
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} eventDay={eventDay}
             onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
-            onPushStock={pushStock} onPullStock={pullStock} syncLog={syncLog}
+            onPushStock={pushStock} onPullStock={pullStock} onPullTxns={pullTransactions} syncLog={syncLog}
             onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
             onRestoreSnapshot={restoreSnapshot}
           />
