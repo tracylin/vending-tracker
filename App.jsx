@@ -979,12 +979,13 @@ export default function App() {
   };
 
   const startEvent = () => {
-    if (!confirm("Start multi-day event? Today's sales become Day 1.")) return;
+    const untagged = txns.filter(t => !t.day).length;
+    const msg = untagged > 0
+      ? `Start multi-day event? ${untagged} existing sale${untagged !== 1 ? 's' : ''} will be tagged as Day 1.`
+      : "Start multi-day event? New sales will be tagged Day 1.";
+    if (!confirm(msg)) return;
     setEventDay(1);
-    setTxns(p => p.map(t => {
-      if (isToday(t.ts) && !t.day) return { ...t, day: 1 };
-      return t;
-    }));
+    setTxns(p => p.map(t => t.day ? t : { ...t, day: 1 }));
   };
 
   const addNewDay = () => {
