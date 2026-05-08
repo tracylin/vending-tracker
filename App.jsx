@@ -294,16 +294,25 @@ function UndoToast({ txn, onUndo, onDone }) {
   );
 }
 
-// ── ConfirmOverlay ────────────────────────────────────────────────────────────
-function ConfirmOverlay({ title, body, cancelLabel, confirmLabel, onCancel, onConfirm }) {
+// ── Dialog ────────────────────────────────────────────────────────────────────
+// kind: 'info' (single OK) | 'confirm' (cancel + primary) | 'danger' (cancel + red)
+function Dialog({ title, body, kind = 'confirm', confirmLabel, cancelLabel, onConfirm, onCancel }) {
+  const cLbl = confirmLabel || (kind === 'info' ? 'OK' : 'Confirm');
+  const xLbl = cancelLabel || 'Cancel';
+  const confirmClass = kind === 'danger' ? 'btn-confirm-discard' : 'btn-confirm-primary';
   return (
     <div className="overlay">
       <div className="confirm-box">
         <div className="confirm-title">{title}</div>
-        <div className="confirm-body">{body}</div>
+        {body && (Array.isArray(body)
+          ? <ul className="confirm-list">{body.map((line, i) => <li key={i}>{line}</li>)}</ul>
+          : <div className="confirm-body">{body}</div>
+        )}
         <div className="confirm-btns">
-          <button className="btn-confirm-cancel" onClick={onCancel}>{cancelLabel || 'Keep Editing'}</button>
-          <button className="btn-confirm-discard" onClick={onConfirm}>{confirmLabel || 'Discard'}</button>
+          {kind !== 'info' && (
+            <button className="btn-confirm-cancel" onClick={onCancel}>{xLbl}</button>
+          )}
+          <button className={confirmClass} onClick={onConfirm}>{cLbl}</button>
         </div>
       </div>
     </div>
@@ -569,7 +578,7 @@ function SummaryView({ txns, eventDay }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRecalcStock, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
   const [expandedHist, setExpandedHist] = useState(-1);
   const [showUrl, setShowUrl] = useState(false);
@@ -682,12 +691,6 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRecalcS
         </>
       )}
 
-      <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
-      <div className="abox">
-        <button className="btn-restore" onClick={onRecalcStock}>Recalculate Stock from Sales</button>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Reads your local transaction log and subtracts sold qty from the original defaults. Use if stock got reset.</div>
-      </div>
-
       <div className="asec-hdr"><span className="asec-lbl">Danger Zone</span></div>
       <div className="abox">
         <button className="btn-danger" onClick={onReset}>
@@ -749,7 +752,16 @@ export default function App() {
   const [editMode,         setEditMode]         = useState(false);
   const [editDraft,        setEditDraft]        = useState(null);
   const [isDirty,          setIsDirty]          = useState(false);
-  const [showCancelConfirm,setShowCancelConfirm]= useState(false);
+
+  // dialog
+  const [dialog, setDialog] = useState(null);
+  const showDialog = useCallback(opts => new Promise(resolve => {
+    setDialog({
+      ...opts,
+      onConfirm: () => { setDialog(null); resolve(true); },
+      onCancel:  () => { setDialog(null); resolve(false); },
+    });
+  }), []);
 
   // cart panel
   const [cartExpanded, setCartExpanded] = useState(false);
@@ -867,16 +879,16 @@ export default function App() {
     pushItemsSync(sheetsUrl, committed);
   };
 
-  const cancelEdit = () => {
-    if (isDirty) setShowCancelConfirm(true);
-    else { setEditMode(false); setEditDraft(null); }
-  };
-
-  const discardEdit = () => {
-    setEditMode(false);
-    setEditDraft(null);
-    setIsDirty(false);
-    setShowCancelConfirm(false);
+  const cancelEdit = async () => {
+    if (!isDirty) { setEditMode(false); setEditDraft(null); return; }
+    const ok = await showDialog({
+      title: 'Discard changes?',
+      body: 'Unsaved edits will be lost.',
+      kind: 'danger',
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    });
+    if (ok) { setEditMode(false); setEditDraft(null); setIsDirty(false); }
   };
 
   // pre-select last payment when first item added to empty cart
@@ -973,10 +985,15 @@ export default function App() {
     if (changes.pay) pushPaymentUpdate(sheetsUrl, id, changes.pay);
   };
 
-  const deleteTxn = id => {
-    if (!confirm('Delete this transaction and restore its stock?')) return;
+  const deleteTxn = async id => {
     const txn = txns.find(t => t.id === id);
     if (!txn) return;
+    if (!await showDialog({
+      title: 'Delete sale?',
+      body: `Stock will be returned to inventory. Sheets is also updated. ${fmt(txn.total)} ${PAY_LABEL[txn.pay] || ''}`.trim(),
+      kind: 'danger',
+      confirmLabel: 'Delete',
+    })) return;
     const newItems = items.map(it => {
       const s = txn.items.find(i => i.id === it.id);
       if (s && it.stock !== null) return { ...it, stock: it.stock + s.qty };
@@ -989,9 +1006,14 @@ export default function App() {
     pushDeleteTransactions(sheetsUrl, [id]);
   };
 
-  const resetToday = () => {
-    const label = eventDay > 0 ? `Day ${eventDay}` : "today";
-    if (!confirm(`Reset ${label}'s sales and restore stock LOCALLY ONLY?\n\nGoogle Sheets is NOT touched. Sales remain in the Sales sheet; stock in the Items sheet is unchanged. To reconcile, use Download (which recalculates stock from sales).`)) return;
+  const resetToday = async () => {
+    const label = eventDay > 0 ? `Day ${eventDay}` : 'today';
+    if (!await showDialog({
+      title: `Reset ${label}?`,
+      body: `Clears ${label}'s sales locally and restores stock. Google Sheets is not touched.`,
+      kind: 'danger',
+      confirmLabel: 'Reset',
+    })) return;
     const todayTxns = txns.filter(x => inToday(x, eventDay));
     const sold = {};
     todayTxns.forEach(txn => txn.items.forEach(it => {
@@ -1008,51 +1030,42 @@ export default function App() {
     setUndoTxn(null);
   };
 
-  const startEvent = () => {
+  const startEvent = async () => {
     const untagged = txns.filter(t => !t.day).length;
-    const msg = untagged > 0
-      ? `Start multi-day event? ${untagged} existing sale${untagged !== 1 ? 's' : ''} will be tagged as Day 1.`
-      : "Start multi-day event? New sales will be tagged Day 1.";
-    if (!confirm(msg)) return;
+    const body = untagged > 0
+      ? `${untagged} existing sale${untagged !== 1 ? 's' : ''} will be tagged Day 1.`
+      : 'New sales will be tagged Day 1.';
+    if (!await showDialog({
+      title: 'Start multi-day event?',
+      body,
+      confirmLabel: 'Start',
+    })) return;
     setEventDay(1);
     setTxns(p => p.map(t => t.day ? t : { ...t, day: 1 }));
   };
 
-  const addNewDay = () => {
+  const addNewDay = async () => {
     const next = eventDay + 1;
-    if (!confirm(`Start Day ${next}? All new sales will be tagged Day ${next}.\n\n(You cannot undo this.)`)) return;
+    if (!await showDialog({
+      title: `Start Day ${next}?`,
+      body: `New sales will be tagged Day ${next}. This can't be undone.`,
+      confirmLabel: `Start Day ${next}`,
+    })) return;
     setEventDay(next);
   };
 
-  const endEvent = () => {
-    if (!confirm("End the event? Day tags will be cleared from all sales (history is kept by timestamp). You can start a new event later.")) return;
+  const endEvent = async () => {
+    if (!await showDialog({
+      title: 'End event?',
+      body: 'Day tags will clear from all sales. Sales history is kept.',
+      kind: 'danger',
+      confirmLabel: 'End event',
+    })) return;
     setEventDay(0);
     setTxns(p => p.map(t => {
       if (t.day) { const { day, ...rest } = t; return rest; }
       return t;
     }));
-  };
-
-  const recalculateStock = () => {
-    if (!txns.length) { alert('No transactions logged. Nothing to subtract.'); return; }
-    const sold = {};
-    txns.forEach(t => t.items.forEach(it => {
-      if (it.name) sold[it.name] = (sold[it.name] || 0) + (it.qty || 0);
-    }));
-    const totalUnits = Object.values(sold).reduce((s, n) => s + n, 0);
-    if (!confirm(`Recalculate stock = original DEFAULTS minus all sales (${totalUnits} units across ${txns.length} transactions)?\n\nUse this if stock got reset to original on a device that had been selling.`)) return;
-    let touched = 0;
-    const newItems = items.map(it => {
-      const def = DEFAULTS.find(d => d.id === it.id);
-      if (!def || def.stock === null) return it;
-      const soldQty = sold[it.name] || 0;
-      if (soldQty === 0) return it.stock === def.stock ? it : { ...it, stock: def.stock };
-      touched++;
-      return { ...it, stock: Math.max(0, def.stock - soldQty) };
-    });
-    setItems(newItems);
-    pushItemsSync(sheetsUrl, newItems);
-    alert(`Recalculated stock for ${touched} items based on ${totalUnits} units sold. Pushed to Sheets.`);
   };
 
   const snapshot = (newItems, newTxns) => ({
@@ -1066,8 +1079,11 @@ export default function App() {
   });
 
   const downloadFromSheets = async () => {
-    if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
-    if (!confirm("Download stock + last 7 days of transactions?\n\nLocal stock will be overwritten by Sheets. Existing local sales kept.")) return;
+    if (!await showDialog({
+      title: 'Download from Sheets?',
+      body: 'Pulls latest stock + last 7 days of sales. Existing local sales are kept.',
+      confirmLabel: 'Download',
+    })) return;
     const daysBack = 7;
     setSync('syncing');
     try {
@@ -1075,7 +1091,7 @@ export default function App() {
       const stockData = await pullStockFromSheets(sheetsUrl);
       if (!stockData || !stockData.items) {
         setSync('error');
-        alert('Failed to fetch stock. Check connection or Apps Script deployment.');
+        await showDialog({ title: 'Download failed', body: 'Could not reach Google Sheets. Check your connection.', kind: 'info' });
         return;
       }
       const remote = stockData.items;
@@ -1092,7 +1108,11 @@ export default function App() {
       const txData = await res.json();
       if (!txData || !txData.transactions) {
         setSync('error');
-        alert(`Stock synced for ${remote.length} items, but the transactions endpoint isn't deployed yet. Update Apps Script to the latest apps-script.js and redeploy to enable transaction sync.`);
+        await showDialog({
+          title: 'Apps Script needs update',
+          body: `Stock synced (${remote.length} items), but the transactions endpoint isn't deployed. Redeploy the latest apps-script.js to enable transaction sync.`,
+          kind: 'info',
+        });
         return;
       }
       const cutoff = Date.now() - daysBack * 24 * 3600 * 1000;
@@ -1114,32 +1134,45 @@ export default function App() {
 
       setSync('synced');
       const sum = fresh.reduce((s, t) => s + t.total, 0);
-      const noteParts = [
+      const lines = [
         `Stock: ${remote.length} items`,
-        `Transactions: ${fresh.length} new${fresh.length ? ` ($${sum.toFixed(2)})` : ''}`,
+        `Transactions: ${fresh.length} new${fresh.length ? ` (${fmt(sum)})` : ''}`,
       ];
-      if (maxDay > 0) noteParts.push(`eventDay: ${maxDay}`);
-      if (untagged > 0) noteParts.push(`${untagged} legacy untagged rows defaulted to Day 1`);
-      alert('Downloaded.\n• ' + noteParts.join('\n• '));
+      if (maxDay > 0) lines.push(`Event day: ${maxDay}`);
+      if (untagged > 0) lines.push(`${untagged} older sale${untagged !== 1 ? 's' : ''} tagged Day 1`);
+      await showDialog({ title: 'Downloaded', body: lines, kind: 'info', confirmLabel: 'Done' });
     } catch (e) {
       setSync('error');
-      alert('Failed: ' + e.message);
+      await showDialog({ title: 'Download failed', body: e.message, kind: 'info' });
     }
   };
 
-  const uploadToSheets = () => {
-    if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
-    if (!confirm("Upload your current stock to Sheets? This overwrites the shared stock counts.")) return;
+  const uploadToSheets = async () => {
+    if (!await showDialog({
+      title: 'Upload stock?',
+      body: 'Replaces shared stock in Google Sheets. Other devices will see this on next download.',
+      confirmLabel: 'Upload',
+    })) return;
     pushItemsSync(sheetsUrl, items, true);
     const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, ...snapshot(items, txns) };
     setSyncLog(log => [entry, ...log].slice(0, 10));
-    alert('Uploaded stock to Sheets. (Transactions auto-push on each sale, no manual upload needed.)');
+    await showDialog({
+      title: 'Uploaded',
+      body: 'Stock pushed to Sheets. Sales auto-push on every transaction — no need to upload those manually.',
+      kind: 'info',
+      confirmLabel: 'Done',
+    });
   };
 
-  const restoreSnapshot = idx => {
+  const restoreSnapshot = async idx => {
     const entry = syncLog[idx];
     if (!entry || (!entry.txns && !entry.itemsSnap)) return;
-    if (!confirm(`Restore to this snapshot? Local sales and stock will be replaced with the snapshot from ${tstr(entry.ts)}.\n\n(This is local only — Google Sheets is not changed.)`)) return;
+    if (!await showDialog({
+      title: 'Restore to this snapshot?',
+      body: `Replaces local sales and stock with the snapshot from ${tstr(entry.ts)}. Google Sheets is not changed.`,
+      kind: 'danger',
+      confirmLabel: 'Restore',
+    })) return;
     if (entry.itemsSnap) {
       const stockMap = new Map(entry.itemsSnap.map(s => [s.id, s.stock]));
       setItems(prev => prev.map(it => stockMap.has(it.id) ? { ...it, stock: stockMap.get(it.id) } : it));
@@ -1261,7 +1294,7 @@ export default function App() {
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} eventDay={eventDay}
-            onReset={resetToday} onRecalcStock={recalculateStock}
+            onReset={resetToday}
             onUpload={uploadToSheets} onDownload={downloadFromSheets} syncLog={syncLog}
             onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
             onRestoreSnapshot={restoreSnapshot}
@@ -1285,14 +1318,15 @@ export default function App() {
 
       {undoTxn && <UndoToast txn={undoTxn} onUndo={undo} onDone={() => setUndoTxn(null)} />}
 
-      {showCancelConfirm && (
-        <ConfirmOverlay
-          title="Discard changes?"
-          body="You have unsaved edits. Discard them?"
-          cancelLabel="Keep Editing"
-          confirmLabel="Discard"
-          onCancel={() => setShowCancelConfirm(false)}
-          onConfirm={discardEdit}
+      {dialog && (
+        <Dialog
+          title={dialog.title}
+          body={dialog.body}
+          kind={dialog.kind}
+          confirmLabel={dialog.confirmLabel}
+          cancelLabel={dialog.cancelLabel}
+          onConfirm={dialog.onConfirm}
+          onCancel={dialog.onCancel}
         />
       )}
     </>
