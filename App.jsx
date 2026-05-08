@@ -18,6 +18,8 @@ const getEventDays = txns => {
 const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzypD6gRdRlx1JV-upbp8K1HBAa6LSDR4HOc7pRCvb7C5ZVJMzuS_39IHho9VEtr9pAsQ/exec';
+
 const CATALOG_VERSION = 4;  // bump this to force-refresh items on all devices
 
 const DEFAULTS = [
@@ -141,6 +143,11 @@ const Icon = {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
       <line x1="4" y1="8" x2="20" y2="8"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
       <line x1="4" y1="16" x2="20" y2="16"/><circle cx="16" cy="16" r="2" fill="currentColor" stroke="none"/>
+    </svg>
+  ),
+  search: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
     </svg>
   ),
 };
@@ -755,13 +762,15 @@ export default function App() {
   const [undoTxn,   setUndoTxn]     = useState(null);
   const [sync,      setSync]        = useState('synced');
   const [syncLog,   setSyncLog]     = useState(() => ld('vt_synclog', []));
-  const [sheetsUrl, setSheetsUrl]  = useState(() => ld('vt_url', 'https://script.google.com/macros/s/AKfycbzypD6gRdRlx1JV-upbp8K1HBAa6LSDR4HOc7pRCvb7C5ZVJMzuS_39IHho9VEtr9pAsQ/exec'));
+  const [sheetsUrlOverride, setSheetsUrlOverride] = useState(() => ld('vt_url_override', ''));
+  const sheetsUrl = (sheetsUrlOverride && sheetsUrlOverride.trim()) || DEFAULT_SHEETS_URL;
+  const setSheetsUrl = v => setSheetsUrlOverride((v || '').trim());
   const [queue,     setQueue]      = useState(() => ld('vt_q', []));
   const [lastPay,   setLastPay]    = useState(() => ld('vt_lastpay', ''));
 
   useEffect(() => sv('vt_items',    items),    [items]);
   useEffect(() => sv('vt_txns',     txns),     [txns]);
-  useEffect(() => sv('vt_url',      sheetsUrl),[sheetsUrl]);
+  useEffect(() => sv('vt_url_override', sheetsUrlOverride), [sheetsUrlOverride]);
   useEffect(() => sv('vt_synclog',  syncLog),  [syncLog]);
   useEffect(() => sv('vt_q',        queue),    [queue]);
   useEffect(() => sv('vt_eventday', eventDay), [eventDay]);
@@ -1220,9 +1229,9 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="sort-bar">
+                    <button className="sort-btn icon-only" aria-label="Search" onClick={() => setSearchOpen(true)}><Icon.search /></button>
                     <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN</button>
                     <button className={`sort-btn${sortStock ? ' on' : ''}`} onClick={() => setSortStock(v => !v)}>Stock</button>
-                    <button className="sort-btn" onClick={() => setSearchOpen(true)}>Search</button>
                   </div>
                 )}
                 {inStockItems.map(item => (
