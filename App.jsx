@@ -562,7 +562,7 @@ function SummaryView({ txns, eventDay }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onRecalcStock, onLoadDefaults, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
   const [expandedHist, setExpandedHist] = useState(-1);
   const todayN = txns.filter(x => inToday(x, eventDay)).length;
@@ -676,7 +676,9 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestore
 
       <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
       <div className="abox">
-        <button className="btn-restore" onClick={onRestoreStock}>Restore Original Stock Counts</button>
+        <button className="btn-restore" onClick={onRecalcStock}>Recalculate Stock from Sales</button>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Reads your local transaction log and subtracts sold qty from the original defaults. Use if stock got reset.</div>
+        <button className="btn-restore" style={{marginTop:10}} onClick={onRestoreStock}>Restore Original Stock</button>
       </div>
       <div className="asec-hdr"><span className="asec-lbl">Items</span></div>
       <div className="abox">
@@ -1033,6 +1035,28 @@ export default function App() {
     pushItemsSync(sheetsUrl, newItems);
   };
 
+  const recalculateStock = () => {
+    if (!txns.length) { alert('No transactions logged. Nothing to subtract.'); return; }
+    const sold = {};
+    txns.forEach(t => t.items.forEach(it => {
+      if (it.name) sold[it.name] = (sold[it.name] || 0) + (it.qty || 0);
+    }));
+    const totalUnits = Object.values(sold).reduce((s, n) => s + n, 0);
+    if (!confirm(`Recalculate stock = original DEFAULTS minus all sales (${totalUnits} units across ${txns.length} transactions)?\n\nUse this if stock got reset to original on a device that had been selling.`)) return;
+    let touched = 0;
+    const newItems = items.map(it => {
+      const def = DEFAULTS.find(d => d.id === it.id);
+      if (!def || def.stock === null) return it;
+      const soldQty = sold[it.name] || 0;
+      if (soldQty === 0) return it.stock === def.stock ? it : { ...it, stock: def.stock };
+      touched++;
+      return { ...it, stock: Math.max(0, def.stock - soldQty) };
+    });
+    setItems(newItems);
+    pushItemsSync(sheetsUrl, newItems);
+    alert(`Recalculated stock for ${touched} items based on ${totalUnits} units sold. Pushed to Sheets.`);
+  };
+
   const snapshot = (newItems, newTxns) => ({
     eventDay,
     txns: newTxns.map(t => ({
@@ -1222,7 +1246,7 @@ export default function App() {
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} eventDay={eventDay}
-            onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
+            onReset={resetToday} onRestoreStock={restoreOriginalStock} onRecalcStock={recalculateStock} onLoadDefaults={loadDefaultItems}
             onUpload={uploadToSheets} onDownload={downloadFromSheets} syncLog={syncLog}
             onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
             onRestoreSnapshot={restoreSnapshot}
