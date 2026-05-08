@@ -609,12 +609,11 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onUpload,
 
       <div className="asec-hdr"><span className="asec-lbl">Device Sync</span></div>
       <div className="abox">
-        <div className="albl" style={{marginBottom:8,opacity:.7,fontSize:11}}>Device: {DEVICE_ID}</div>
-        <div style={{display:'flex',gap:8}}>
-          <button className="btn-restore" style={{flex:1}} onClick={onUpload}>Upload</button>
-          <button className="btn-restore" style={{flex:1}} onClick={onDownload}>Download</button>
-        </div>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Upload sends your stock to Sheets (transactions auto-push on every sale). Download pulls latest stock + missing transactions; sets eventDay to the latest day found, so a Day 3 staffer joining fresh lands on Day 3 with full history.</div>
+        <button className="btn-restore" style={{padding:'15px',fontSize:15}} onClick={onDownload}>↓ Download</button>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Pulls latest stock and last 7 days of sales. Use this when you start your shift on a new device.</div>
+        <button className="btn-secondary" style={{marginTop:14}} onClick={onUpload}>Upload Stock Counts</button>
+        <div className="albl" style={{marginTop:6,opacity:.5,fontSize:11}}>Each sale auto-uploads stock + transaction. Only tap this if you suspect Sheets fell out of sync.</div>
+        <div className="albl" style={{marginTop:8,opacity:.5,fontSize:10}}>Device: {DEVICE_ID}</div>
       </div>
 
       {syncLog.length > 0 && (
@@ -1079,11 +1078,6 @@ export default function App() {
   });
 
   const downloadFromSheets = async () => {
-    if (!await showDialog({
-      title: 'Download from Sheets?',
-      body: 'Pulls latest stock + last 7 days of sales. Existing local sales are kept.',
-      confirmLabel: 'Download',
-    })) return;
     const daysBack = 7;
     setSync('syncing');
     try {
@@ -1149,8 +1143,8 @@ export default function App() {
 
   const uploadToSheets = async () => {
     if (!await showDialog({
-      title: 'Upload stock?',
-      body: 'Replaces shared stock in Google Sheets. Other devices will see this on next download.',
+      title: 'Upload stock counts?',
+      body: 'Overwrites the shared stock in Sheets with this device\'s counts. Other devices will see it on their next Download.',
       confirmLabel: 'Upload',
     })) return;
     pushItemsSync(sheetsUrl, items, true);
@@ -1158,7 +1152,7 @@ export default function App() {
     setSyncLog(log => [entry, ...log].slice(0, 10));
     await showDialog({
       title: 'Uploaded',
-      body: 'Stock pushed to Sheets. Sales auto-push on every transaction — no need to upload those manually.',
+      body: 'Stock counts pushed to Sheets.',
       kind: 'info',
       confirmLabel: 'Done',
     });
