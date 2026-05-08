@@ -562,9 +562,10 @@ function SummaryView({ txns, eventDay }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onRecalcStock, onLoadDefaults, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRecalcStock, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
   const [expandedHist, setExpandedHist] = useState(-1);
+  const [showUrl, setShowUrl] = useState(false);
   const todayN = txns.filter(x => inToday(x, eventDay)).length;
   const todayLabel = eventDay > 0 ? `Day ${eventDay}` : "Today";
 
@@ -678,25 +679,29 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestore
       <div className="abox">
         <button className="btn-restore" onClick={onRecalcStock}>Recalculate Stock from Sales</button>
         <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Reads your local transaction log and subtracts sold qty from the original defaults. Use if stock got reset.</div>
-        <button className="btn-restore" style={{marginTop:10}} onClick={onRestoreStock}>Restore Original Stock</button>
       </div>
-      <div className="asec-hdr"><span className="asec-lbl">Items</span></div>
-      <div className="abox">
-        <button className="btn-restore" onClick={onLoadDefaults}>Load Default Item List</button>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Replaces all items with the baked-in list. Sales history kept.</div>
-      </div>
-      <div className="asec-hdr"><span className="asec-lbl">Google Sheets</span></div>
-      <div className="abox">
-        <div className="albl">Apps Script Web App URL</div>
-        <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
-        <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save</button></div>
-      </div>
+
       <div className="asec-hdr"><span className="asec-lbl">Danger Zone</span></div>
       <div className="abox">
         <button className="btn-danger" onClick={onReset}>
           Reset {todayLabel}'s Sales + Restock ({todayN} transaction{todayN !== 1 ? 's' : ''})
         </button>
       </div>
+
+      {showUrl ? (
+        <>
+          <div className="asec-hdr"><span className="asec-lbl">Google Sheets URL</span><button onClick={() => setShowUrl(false)} style={{fontSize:11,color:'var(--t3)',padding:'4px 8px'}}>Hide</button></div>
+          <div className="abox">
+            <div className="albl">Apps Script Web App URL</div>
+            <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+            <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save</button></div>
+          </div>
+        </>
+      ) : (
+        <button onClick={() => setShowUrl(true)} style={{textAlign:'left',padding:'12px 4px',color:'var(--t3)',fontSize:11,letterSpacing:'.3px'}}>
+          ▸ Sheets URL (advanced)
+        </button>
+      )}
     </div>
   );
 }
@@ -1019,16 +1024,6 @@ export default function App() {
     }));
   };
 
-  const restoreOriginalStock = () => {
-    if (!confirm("Restore all stock to original counts from the spreadsheet?")) return;
-    const newItems = items.map(it => {
-      const def = DEFAULTS.find(d => d.id === it.id);
-      return def ? { ...it, stock: def.stock } : it;
-    });
-    setItems(newItems);
-    pushItemsSync(sheetsUrl, newItems);
-  };
-
   const recalculateStock = () => {
     if (!txns.length) { alert('No transactions logged. Nothing to subtract.'); return; }
     const sold = {};
@@ -1151,15 +1146,12 @@ export default function App() {
     if (typeof entry.eventDay === 'number') setEventDay(entry.eventDay);
   };
 
-  const loadDefaultItems = () => {
-    if (!confirm("Replace all items with the default list? Your sales history is kept.")) return;
-    setItems(DEFAULTS);
-    pushItemsSync(sheetsUrl, DEFAULTS);
-  };
 
   // ── derived item lists ───────────────────────────────────────────────────────
-  const [sortLang,  setSortLang]  = useState(false);
-  const [sortStock, setSortStock] = useState(false);
+  const [sortLang,    setSortLang]    = useState(false);
+  const [sortStock,   setSortStock]   = useState(false);
+  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const applySort = arr => {
     if (!sortLang && !sortStock) return arr;
@@ -1177,7 +1169,13 @@ export default function App() {
     });
   };
 
-  const activeItems  = items.filter(i => i.active);
+  const matchesSearch = item => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return item.name.toLowerCase().includes(q) || (item.lang || '').toLowerCase().includes(q);
+  };
+
+  const activeItems  = items.filter(i => i.active && matchesSearch(i));
   const inStockItems = applySort(activeItems.filter(i => i.stock === null || i.stock > 0));
   const oosItems     = applySort(activeItems.filter(i => i.stock !== null && i.stock <= 0));
 
@@ -1209,10 +1207,24 @@ export default function App() {
               </>
             ) : (
               <>
-                <div className="sort-bar">
-                  <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN</button>
-                  <button className={`sort-btn${sortStock ? ' on' : ''}`} onClick={() => setSortStock(v => !v)}>Stock</button>
-                </div>
+                {searchOpen ? (
+                  <div className="search-bar">
+                    <input
+                      className="search-input"
+                      autoFocus
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search items"
+                    />
+                    <button className="sort-btn" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}>✕</button>
+                  </div>
+                ) : (
+                  <div className="sort-bar">
+                    <button className={`sort-btn${sortLang  ? ' on' : ''}`} onClick={() => setSortLang(v => !v)}>EN</button>
+                    <button className={`sort-btn${sortStock ? ' on' : ''}`} onClick={() => setSortStock(v => !v)}>Stock</button>
+                    <button className="sort-btn" onClick={() => setSearchOpen(true)}>Search</button>
+                  </div>
+                )}
                 {inStockItems.map(item => (
                   <ItemRow
                     key={item.id} item={item}
@@ -1240,7 +1252,7 @@ export default function App() {
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} eventDay={eventDay}
-            onReset={resetToday} onRestoreStock={restoreOriginalStock} onRecalcStock={recalculateStock} onLoadDefaults={loadDefaultItems}
+            onReset={resetToday} onRecalcStock={recalculateStock}
             onUpload={uploadToSheets} onDownload={downloadFromSheets} syncLog={syncLog}
             onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
             onRestoreSnapshot={restoreSnapshot}
