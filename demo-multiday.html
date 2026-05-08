@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Multi-Day Event Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;
+  --s1:#C4C1BA;--s2:#CECBC4;--s3:#B7B5AE;--bd:#AEACA5;
+  --t1:#2828CC;--t2:#58589A;--t3:#9090BC;
+  --ac:#2828CC;--ac2:rgba(40,40,204,.12);
+  --ve:#3535DD;--ve2:rgba(53,53,221,.12);
+  --ze:#7733BB;--ze2:rgba(119,51,187,.12);
+  --ca:#187A40;--ca2:rgba(24,122,64,.12);
+  --dn:#C02020;
+  --nav:58px;--r:14px;--r2:9px;
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--t1);font-family:var(--font);font-size:15px;-webkit-tap-highlight-color:transparent}
+.root{display:flex;flex-direction:column;max-width:430px;margin:0 auto;height:100%;overflow:hidden}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* ── header ── */
+.hdr{background:var(--s1);border-bottom:1px solid var(--bd);padding:12px 16px 10px;flex-shrink:0}
+.hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hdr-title{font-size:15px;font-weight:600;letter-spacing:-.2px;color:var(--t1)}
+.sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3);font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ca);flex-shrink:0}
+.hdr-totals{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.grand{font-size:30px;font-weight:700;letter-spacing:-.8px;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px}
+.chip-ve{background:var(--ve2);color:var(--ve)}
+.chip-ze{background:var(--ze2);color:var(--ze)}
+.chip-ca{background:var(--ca2);color:var(--ca)}
+
+/* inline event total — sits next to grand number */
+.grand-total{font-size:16px;font-weight:500;color:var(--t3);letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ── main scroll ── */
+.main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;min-height:120px;background:var(--s2)}
+
+/* ── unified filter bar (day + payment in one row) ── */
+.fbar{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--bd);background:var(--s1);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fbar::-webkit-scrollbar{display:none}
+.fchip{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;background:var(--s3);color:var(--t2);white-space:nowrap;flex-shrink:0;min-height:32px;transition:background 120ms,color 120ms}
+.fchip:active{transform:scale(.96)}
+.fchip.on{background:var(--ac);color:#fff}
+.fbar-sep{width:1px;background:var(--bd);flex-shrink:0;margin:2px 2px;border-radius:1px}
+
+/* ── transaction rows ── */
+.txrow{padding:13px 16px;border-bottom:1px solid var(--bd);touch-action:manipulation}
+.txmain{display:flex;align-items:flex-start;gap:10px}
+.txtime{font-size:11px;color:var(--t2);min-width:40px;flex-shrink:0;padding-top:2px;font-weight:500}
+.txinfo{flex:1;min-width:0}
+.txsum{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1)}
+.txnote{font-size:12px;color:var(--t2);margin-top:2px;font-style:italic}
+.txr{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.txtot{font-size:14px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.tx-pay{font-size:11px;font-weight:600;letter-spacing:.2px}
+
+/* date divider */
+.date-divider{padding:8px 16px;font-size:11px;font-weight:600;color:var(--t3);text-align:center;letter-spacing:.5px;border-bottom:1px solid var(--bd);background:var(--s1)}
+
+/* ── empty state ── */
+.empty{text-align:center;padding:56px 24px;color:var(--t2)}
+.empty-icon{font-size:32px;margin-bottom:12px;opacity:.6}
+.empty div{font-size:14px;font-weight:500;line-height:1.5}
+
+/* ── summary ── */
+.sw{padding:16px;display:flex;flex-direction:column;gap:10px}
+.scope-toggle{display:flex;background:var(--s3);border-radius:var(--r2);padding:3px;margin-bottom:6px}
+.scope-btn{flex:1;padding:8px;border-radius:7px;font-size:13px;font-weight:600;text-align:center;color:var(--t2);transition:background 150ms,color 150ms,box-shadow 150ms;min-height:36px}
+.scope-btn.on{background:var(--s1);color:var(--t1);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.totcard{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:20px;text-align:center}
+.totlbl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:600}
+.totamt{font-size:40px;font-weight:700;letter-spacing:-1.5px;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1}
+.statrow{display:flex;gap:10px}
+.statcard{flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px;text-align:center}
+.statval{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.statlbl{font-size:11px;color:var(--t2);margin-top:3px;font-weight:500}
+.sumsec{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:16px}
+.seclbl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;font-weight:600}
+.mrow{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mrow:last-child{margin-bottom:0}
+.mname{font-size:13px;font-weight:600;min-width:56px}
+.mbg{flex:1;height:4px;background:var(--s3);border-radius:4px;overflow:hidden}
+.mbar{height:100%;border-radius:4px;transition:width 500ms ease-out}
+.mbar-ve{background:var(--ve)}.mbar-ze{background:var(--ze)}.mbar-ca{background:var(--ca)}
+.mamt{font-size:13px;font-weight:700;min-width:52px;text-align:right;color:var(--t1);font-variant-numeric:tabular-nums}
+.mpct{font-size:12px;color:var(--t2);min-width:32px;text-align:right}
+.toprow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.toprow:last-child{border-bottom:none}
+.toprank{font-size:12px;color:var(--t3);min-width:16px;font-weight:600}
+.topname{flex:1;font-size:14px;font-weight:500;color:var(--t1)}
+.topcnt{font-size:12px;color:var(--t2)}
+.toprev{font-size:14px;font-weight:700;min-width:48px;text-align:right;color:var(--t1);font-variant-numeric:tabular-nums}
+
+/* ── settings ── */
+.settings{padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+/* settings row — one-line control */
+.srow{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px 16px}
+.srow-label{font-size:14px;font-weight:500;color:var(--t1);flex:1;min-width:0}
+.srow-sub{font-size:11px;color:var(--t3);font-weight:400}
+.srow-day{font-size:14px;font-weight:700;color:var(--ca);display:flex;align-items:center;gap:5px}
+.srow-dot{width:7px;height:7px;border-radius:50%;background:var(--ca)}
+.sbtn{padding:8px 14px;border-radius:var(--r2);font-size:13px;font-weight:600;background:var(--ac2);color:var(--ac);flex-shrink:0}
+.sbtn:active{opacity:.7}
+.sbtn-dn{background:rgba(192,32,32,.12);color:var(--dn)}
+/* stacked group */
+.sgroup{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.sgroup-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--bd)}
+.sgroup-row:last-child{border-bottom:none}
+.sgroup-row .srow-label{font-size:14px;font-weight:500;color:var(--t1);flex:1}
+/* sheets url */
+.surl-row{display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px}
+.surl-row input{flex:1;font-size:13px;padding:5px 0;background:transparent;border:none;color:var(--t1);outline:none;min-width:0}
+/* pair buttons */
+.spair{display:flex;gap:8px}
+.spair .sbtn{flex:1;text-align:center;padding:12px 8px;font-size:14px;font-weight:600}
+/* sync history */
+.shist{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.shist-row{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--bd);font-size:12px}
+.shist-row:last-child{border-bottom:none}
+.shist-dir{font-weight:700;font-size:11px;letter-spacing:.3px;min-width:34px}
+.shist-dir.push{color:var(--ze)}
+.shist-dir.pull{color:var(--ve)}
+.shist-time{color:var(--t2);font-weight:500;min-width:52px}
+.shist-dev{color:var(--t3);font-size:11px;flex:1}
+.shist-restore{font-size:11px;font-weight:500;color:var(--t3);padding:4px 8px}
+.shist-restore:active{color:var(--ac)}
+/* expanded snapshot detail */
+.shist-detail{padding:0 16px 10px;border-bottom:1px solid var(--bd);background:var(--s2);font-size:12px;color:var(--t2)}
+.shist-detail-hdr{display:flex;justify-content:space-between;padding:6px 0 4px;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--bd);margin-bottom:2px}
+.shist-detail-row{display:flex;align-items:center;padding:3px 0}
+.shist-detail-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.shist-detail-stock{min-width:28px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:var(--t1);font-size:12px}
+.shist-detail-stock.zero{color:var(--dn);opacity:.6}
+.shist-detail-actions{display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)}
+.shist-detail-actions .sbtn{font-size:12px;padding:6px 12px}
+
+/* ── nav ── */
+.nav{display:flex;background:#080808;border-top:1px solid #1C1C1C;height:var(--nav);flex-shrink:0}
+.ntab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:500;color:#383848;position:relative;transition:color 120ms;letter-spacing:.2px;touch-action:manipulation}
+.ntab.on{color:#8080DD}
+.ntab.on::before{content:'';position:absolute;top:0;left:30%;right:30%;height:2px;background:#8080DD;border-radius:0 0 4px 4px}
+.nicon{font-size:18px;line-height:1}
+
+/* demo label */
+.demo-banner{background:var(--ac2);color:var(--ac);text-align:center;font-size:11px;font-weight:600;padding:6px;letter-spacing:.3px}
+</style>
+</head>
+<body>
+<div class="root">
+  <div class="demo-banner">DEMO: Multi-Day Event — No app code changed</div>
+  <div class="hdr">
+    <div class="hdr-top">
+      <span class="hdr-title">Vending Tracker</span>
+      <span class="sync"><span class="dot"></span><span>synced</span></span>
+    </div>
+    <div class="hdr-totals" id="hdr-totals"></div>
+  </div>
+
+  <div class="main" id="main-content"></div>
+
+  <div class="nav">
+    <button class="ntab" onclick="switchTab('items')"><span class="nicon">+</span><span>Items</span></button>
+    <button class="ntab on" id="nav-log" onclick="switchTab('log')"><span class="nicon">&#9776;</span><span>Log</span></button>
+    <button class="ntab" id="nav-summary" onclick="switchTab('summary')"><span class="nicon">&#9632;</span><span>Summary</span></button>
+    <button class="ntab" id="nav-settings" onclick="switchTab('settings')"><span class="nicon">&#9881;</span><span>Settings</span></button>
+  </div>
+</div>
+
+<script>
+const PAY_COLORS = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
+const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
+
+// ── Mock data ──
+// Event mode: user taps "Start Event" → Day 1. Taps "New Day" each morning → Day 2, 3...
+// Each transaction is tagged with the current day number at time of sale.
+// Stored in localStorage: vt_eventday (current day number, 0 = no event)
+
+// Simulated state: currently on Day 3
+let eventDay = 3; // 0 = no event active
+let mockId = 100;
+
+const MOCK_TXNS = [
+  // Day 1
+  { id:'t1', day:1, ts: Date.now()-172800000+3600000*1, items:[{name:'Three Stories 三个故事',qty:1,lt:22}], total:22, pay:'venmo', note:'' },
+  { id:'t2', day:1, ts: Date.now()-172800000+3600000*2, items:[{name:'卡门 Carmen',qty:1,lt:18}], total:18, pay:'cash', note:'' },
+  { id:'t3', day:1, ts: Date.now()-172800000+3600000*3, items:[{name:'Seed of Memory',qty:1,lt:20},{name:'Blue Jean Pocket Writers',qty:1,lt:6}], total:26, pay:'venmo', note:'' },
+  { id:'t4', day:1, ts: Date.now()-172800000+3600000*4, items:[{name:'温州记 Journey to Wenzhou',qty:1,lt:18}], total:18, pay:'zelle', note:'' },
+  { id:'t5', day:1, ts: Date.now()-172800000+3600000*5, items:[{name:'墙洞 Hole in the Wall',qty:2,lt:24}], total:24, pay:'cash', note:'' },
+  { id:'t6', day:1, ts: Date.now()-172800000+3600000*6, items:[{name:'卡拉什尼科夫 Kalashnikov',qty:1,lt:15.40}], total:15.40, pay:'venmo', note:'30% off' },
+  { id:'t7', day:1, ts: Date.now()-172800000+3600000*7, items:[{name:'Deep Simulator 深渊模拟器',qty:1,lt:26}], total:26, pay:'zelle', note:'' },
+  // Day 2
+  { id:'t8',  day:2, ts: Date.now()-86400000+3600000*1, items:[{name:'51 Personae: Tarwewijk',qty:1,lt:22}], total:22, pay:'venmo', note:'' },
+  { id:'t9',  day:2, ts: Date.now()-86400000+3600000*2, items:[{name:'Of Birds and Factories',qty:1,lt:25}], total:25, pay:'cash', note:'' },
+  { id:'t10', day:2, ts: Date.now()-86400000+3600000*3, items:[{name:'51摊 51 Tan (a set of three)',qty:1,lt:22}], total:22, pay:'zelle', note:'' },
+  { id:'t11', day:2, ts: Date.now()-86400000+3600000*4, items:[{name:'Three Stories 三个故事',qty:1,lt:22},{name:'卡门 Carmen',qty:1,lt:18}], total:40, pay:'venmo', note:'' },
+  { id:'t12', day:2, ts: Date.now()-86400000+3600000*5, items:[{name:'Stand With Her woodcut journal',qty:2,lt:24}], total:24, pay:'cash', note:'' },
+  // Day 3 (current day)
+  { id:'t13', day:3, ts: Date.now()-3600000*4, items:[{name:'Beijing Underground 北京地下',qty:1,lt:15}], total:15, pay:'venmo', note:'' },
+  { id:'t14', day:3, ts: Date.now()-3600000*3, items:[{name:'洋槐树下的学堂',qty:1,lt:23}], total:23, pay:'cash', note:'' },
+  { id:'t15', day:3, ts: Date.now()-3600000*2, items:[{name:'别处的月光',qty:1,lt:22},{name:'马来素描',qty:1,lt:23}], total:45, pay:'venmo', note:'' },
+  { id:'t16', day:3, ts: Date.now()-3600000*1, items:[{name:'Seed of Memory',qty:1,lt:20}], total:20, pay:'zelle', note:'' },
+  { id:'t17', day:3, ts: Date.now()-1800000, items:[{name:'利雅得七天',qty:1,lt:10},{name:'口袋里有个红街市',qty:1,lt:12}], total:22, pay:'cash', note:'' },
+];
+
+const fmt = n => '$' + Number(n).toFixed(2);
+const timeStr = ts => {
+  const d = new Date(ts), h = d.getHours(), m = String(d.getMinutes()).padStart(2,'0');
+  return `${h%12||12}:${m}${h>=12?'pm':'am'}`;
+};
+
+// Get sorted unique day numbers that have transactions
+function getEventDays() {
+  const set = new Set();
+  MOCK_TXNS.forEach(tx => { if (tx.day) set.add(tx.day); });
+  return [...set].sort((a,b) => a - b);
+}
+
+let currentTab = 'log';
+let dayFilter = 'today';   // 'today' | 'all' | day number (1, 2, 3...)
+let payFilter = 'all';
+let summaryScope = 'today';
+
+function switchTab(tab) {
+  currentTab = tab;
+  if (tab === 'log') { dayFilter = 'today'; payFilter = 'all'; }
+  if (tab === 'summary') { summaryScope = 'today'; }
+  document.querySelectorAll('.ntab').forEach(n => n.classList.remove('on'));
+  document.getElementById('nav-' + tab)?.classList.add('on');
+  render();
+}
+
+function setDayFilter(f) { dayFilter = f; render(); }
+function setPayFilter(f) { payFilter = f; render(); }
+function setSummaryScope(s) { summaryScope = s; render(); }
+
+function render() {
+  renderHeader();
+  const main = document.getElementById('main-content');
+  if (currentTab === 'log') renderLog(main);
+  else if (currentTab === 'summary') renderSummary(main);
+  else if (currentTab === 'settings') renderSettings(main);
+  else main.innerHTML = '<div class="empty"><div class="empty-icon">+</div><div>Items view unchanged<br>Tap Log, Summary, or Settings</div></div>';
+}
+
+function renderHeader() {
+  // "Today" = current event day
+  const todayTxns = MOCK_TXNS.filter(x => x.day === eventDay);
+  const todayTot = todayTxns.reduce((s,x) => s + x.total, 0);
+  const todayVenmo = todayTxns.filter(x=>x.pay==='venmo').reduce((s,x)=>s+x.total,0);
+  const todayZelle = todayTxns.filter(x=>x.pay==='zelle').reduce((s,x)=>s+x.total,0);
+  const todayCash  = todayTxns.filter(x=>x.pay==='cash').reduce((s,x)=>s+x.total,0);
+  const allTxns = MOCK_TXNS.filter(x => x.day > 0);
+  const eventTot = allTxns.reduce((s,x) => s + x.total, 0);
+
+  const showTotal = eventDay > 0 && eventTot !== todayTot;
+  let html = `<span class="grand">${fmt(todayTot)}</span>`;
+  if (showTotal) {
+    html += `<span class="grand-total">/ ${fmt(eventTot)}</span>`;
+  }
+  html += `<div class="chips">
+      ${todayVenmo > 0 ? `<span class="chip chip-ve">Venmo ${fmt(todayVenmo)}</span>` : ''}
+      ${todayZelle > 0 ? `<span class="chip chip-ze">Zelle ${fmt(todayZelle)}</span>` : ''}
+      ${todayCash  > 0 ? `<span class="chip chip-ca">Cash ${fmt(todayCash)}</span>` : ''}
+    </div>`;
+
+  document.getElementById('hdr-totals').innerHTML = html;
+}
+
+function renderLog(el) {
+  const eventDays = getEventDays();
+
+  // ── Single filter bar: day pills | separator | payment pills ──
+  let html = '<div class="fbar">';
+
+  // Day pills — "Today" first, then past days, then "All"
+  html += `<button class="fchip${dayFilter==='today'?' on':''}" onclick="setDayFilter('today')">Today</button>`;
+  eventDays.forEach(dn => {
+    if (dn === eventDay) return; // "Today" already covers current day
+    html += `<button class="fchip${dayFilter===dn?' on':''}" onclick="setDayFilter(${dn})">Day ${dn}</button>`;
+  });
+  // Show "All" pill when there are past days (even if current day has no transactions yet)
+  if (eventDays.length > 1 || (eventDays.length >= 1 && !eventDays.includes(eventDay))) {
+    html += `<button class="fchip${dayFilter==='all'?' on':''}" onclick="setDayFilter('all')">All</button>`;
+  }
+
+  // Separator
+  html += '<div class="fbar-sep"></div>';
+
+  // Payment pills
+  ['all','venmo','zelle','cash'].forEach(f => {
+    html += `<button class="fchip${payFilter===f?' on':''}" onclick="setPayFilter('${f}')">${f==='all'?'\u2022':PAY_LABEL[f]}</button>`;
+  });
+  html += '</div>';
+
+  // ── Filter transactions ──
+  let filtered;
+  if (dayFilter === 'today') {
+    filtered = MOCK_TXNS.filter(x => x.day === eventDay);
+  } else if (dayFilter === 'all') {
+    filtered = MOCK_TXNS.filter(x => x.day > 0);
+  } else {
+    filtered = MOCK_TXNS.filter(x => x.day === dayFilter);
+  }
+  if (payFilter !== 'all') filtered = filtered.filter(x => x.pay === payFilter);
+  // Sort: by day descending, then by time descending within each day
+  filtered.sort((a,b) => b.day !== a.day ? b.day - a.day : b.ts - a.ts);
+
+  // ── Render rows ──
+  if (!filtered.length) {
+    const dayLabel = dayFilter === 'all' ? '' : dayFilter === 'today' ? ' today' : ` on Day ${dayFilter}`;
+    const payLabel = payFilter !== 'all' ? ` (${PAY_LABEL[payFilter]})` : '';
+    html += `<div class="empty"><div class="empty-icon">\u2014</div><div>No sales${dayLabel}${payLabel}</div>`;
+    if (dayFilter === 'today' && payFilter === 'all' && eventDay > 0) {
+      html += `<div style="margin-top:16px"><button class="fchip on" onclick="mockSale()" style="font-size:14px;padding:10px 20px">+ Mock Sale (demo)</button></div>`;
+    }
+    html += `</div>`;
+  } else if (dayFilter === 'all') {
+    // Group by day with dividers
+    let lastDay = 0;
+    filtered.forEach(tx => {
+      if (tx.day !== lastDay) {
+        lastDay = tx.day;
+        html += `<div class="date-divider">\u2014 Day ${tx.day} \u2014</div>`;
+      }
+      html += txRow(tx);
+    });
+  } else {
+    filtered.forEach(tx => { html += txRow(tx); });
+  }
+
+  el.innerHTML = html;
+}
+
+function txRow(tx) {
+  const sum = tx.items.map(i => `${i.name}${i.qty > 1 ? ' \u00d7'+i.qty : ''}`).join(', ');
+  return `<div class="txrow">
+    <div class="txmain">
+      <span class="txtime">${timeStr(tx.ts)}</span>
+      <div class="txinfo">
+        <div class="txsum">${sum}</div>
+        ${tx.note ? `<div class="txnote">\u201c${tx.note}\u201d</div>` : ''}
+      </div>
+      <div class="txr">
+        <span class="txtot">${fmt(tx.total)}</span>
+        <span class="tx-pay" style="color:${PAY_COLORS[tx.pay]}">${PAY_LABEL[tx.pay]}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSummary(el) {
+  const rows = summaryScope === 'today' ? MOCK_TXNS.filter(x => x.day === eventDay) : MOCK_TXNS.filter(x => x.day > 0);
+  const d = rows.reduce((a, x) => {
+    a.rev += x.total; a[x.pay] = (a[x.pay]||0) + x.total;
+    x.items.forEach(it => { if (!a.im[it.name]) a.im[it.name]={c:0,r:0}; a.im[it.name].c += it.qty; a.im[it.name].r += it.lt; });
+    return a;
+  }, { rev:0, venmo:0, zelle:0, cash:0, im:{} });
+  const top = Object.entries(d.im).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
+  const avg = rows.length ? d.rev / rows.length : 0;
+  const pct = n => d.rev > 0 ? Math.round(n/d.rev*100)+'%' : '\u2014';
+  const bw  = n => d.rev > 0 ? Math.round(n/d.rev*100)+'%' : '0%';
+  const label = summaryScope === 'today' ? "Today's" : 'Total';
+
+  let html = '<div class="sw">';
+  html += `<div class="scope-toggle">
+    <button class="scope-btn${summaryScope==='today'?' on':''}" onclick="setSummaryScope('today')">Today</button>
+    <button class="scope-btn${summaryScope==='total'?' on':''}" onclick="setSummaryScope('total')">Total</button>
+  </div>`;
+  html += `<div class="totcard"><div class="totlbl">${label} Revenue</div><div class="totamt">${fmt(d.rev)}</div></div>`;
+  html += `<div class="statrow">
+    <div class="statcard"><div class="statval">${rows.length}</div><div class="statlbl">Transactions</div></div>
+    <div class="statcard"><div class="statval">${fmt(avg)}</div><div class="statlbl">Avg Sale</div></div>
+  </div>`;
+  html += '<div class="sumsec"><div class="seclbl">By Payment</div>';
+  [['venmo',d.venmo,'ve'],['zelle',d.zelle,'ze'],['cash',d.cash,'ca']].forEach(([m,amt,k]) => {
+    html += `<div class="mrow">
+      <span class="mname" style="color:var(--${k})">${PAY_LABEL[m]}</span>
+      <div class="mbg"><div class="mbar mbar-${k}" style="width:${bw(amt)}"></div></div>
+      <span class="mamt">${fmt(amt)}</span>
+      <span class="mpct">${pct(amt)}</span>
+    </div>`;
+  });
+  html += '</div>';
+  if (top.length) {
+    html += '<div class="sumsec"><div class="seclbl">Top Items</div>';
+    top.forEach(([name,data],i) => {
+      html += `<div class="toprow"><span class="toprank">${i+1}</span><span class="topname">${name}</span><span class="topcnt">\u00d7${data.c}</span><span class="toprev">${fmt(data.r)}</span></div>`;
+    });
+    html += '</div>';
+  }
+  if (!rows.length) html += '<div class="empty"><div class="empty-icon">\u2014</div><div>No sales yet today</div></div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function startEvent() {
+  eventDay = 1;
+  // Tag all existing "today" transactions as Day 1
+  MOCK_TXNS.forEach(tx => { if (!tx.day) tx.day = 1; });
+  dayFilter = 'today'; payFilter = 'all'; summaryScope = 'today';
+  render();
+}
+
+function addNewDay() {
+  if (!confirm(`Start Day ${eventDay + 1}? All new sales will be tagged Day ${eventDay + 1}.\n\n(You cannot undo this.)`)) return;
+  eventDay++;
+  dayFilter = 'today'; payFilter = 'all'; summaryScope = 'today';
+  render();
+}
+
+// Demo helper: simulate a sale on the current day
+const SAMPLE_ITEMS = [
+  {name:'Three Stories 三个故事',price:22}, {name:'卡门 Carmen',price:18},
+  {name:'Seed of Memory',price:20}, {name:'Of Birds and Factories',price:25},
+  {name:'洋槐树下的学堂',price:23}, {name:'别处的月光',price:22},
+];
+const SAMPLE_PAY = ['venmo','zelle','cash'];
+function mockSale() {
+  const item = SAMPLE_ITEMS[Math.floor(Math.random()*SAMPLE_ITEMS.length)];
+  const pay = SAMPLE_PAY[Math.floor(Math.random()*SAMPLE_PAY.length)];
+  MOCK_TXNS.push({
+    id: 't'+(mockId++), day: eventDay, ts: Date.now(),
+    items: [{name:item.name, qty:1, lt:item.price}],
+    total: item.price, pay, note: ''
+  });
+  dayFilter = 'today'; payFilter = 'all';
+  render();
+}
+
+// Mock sync history — full cumulative snapshots (all days up to that point)
+const DAY1_TXNS = [
+  {day:1,time:'5:00pm',sum:'Deep Simulator 深渊模拟器',total:26,pay:'zelle'},
+  {day:1,time:'4:20pm',sum:'卡拉什尼科夫 Kalashnikov',total:15.40,pay:'venmo'},
+  {day:1,time:'3:45pm',sum:'墙洞 Hole in the Wall \u00d72',total:24,pay:'cash'},
+  {day:1,time:'2:15pm',sum:'温州记 Journey to Wenzhou',total:18,pay:'zelle'},
+  {day:1,time:'1:30pm',sum:'Seed of Memory, Blue Jean Pocket Writers',total:26,pay:'venmo'},
+  {day:1,time:'12:05pm',sum:'卡门 Carmen',total:18,pay:'cash'},
+  {day:1,time:'11:20am',sum:'Three Stories 三个故事',total:22,pay:'venmo'},
+];
+const DAY2_TXNS = [
+  {day:2,time:'4:00pm',sum:'Stand With Her woodcut journal \u00d72',total:24,pay:'cash'},
+  {day:2,time:'2:30pm',sum:'Three Stories 三个故事, 卡门 Carmen',total:40,pay:'venmo'},
+  {day:2,time:'1:00pm',sum:'51摊 51 Tan (a set of three)',total:22,pay:'zelle'},
+  {day:2,time:'11:15am',sum:'Of Birds and Factories',total:25,pay:'cash'},
+  {day:2,time:'10:30am',sum:'51 Personae: Tarwewijk',total:22,pay:'venmo'},
+];
+const DAY3_PARTIAL = [
+  {day:3,time:'2:00pm',sum:'Seed of Memory',total:20,pay:'zelle'},
+  {day:3,time:'12:30pm',sum:'别处的月光, 马来素描',total:45,pay:'venmo'},
+  {day:3,time:'11:45am',sum:'洋槐树下的学堂',total:23,pay:'cash'},
+  {day:3,time:'10:00am',sum:'Beijing Underground 北京地下',total:15,pay:'venmo'},
+];
+const DAY3_FULL = [
+  {day:3,time:'3:20pm',sum:'利雅得七天, 口袋里有个红街市',total:22,pay:'cash'},
+  ...DAY3_PARTIAL,
+];
+
+const MOCK_HISTORY = [
+  { dir:'pull', ts: Date.now()-1800000, device:'device-b1c9', eventDay:3,
+    txns:[...DAY3_FULL, ...DAY2_TXNS, ...DAY1_TXNS],
+    stock:[
+      {name:'Three Stories 三个故事',stock:7},{name:'卡门 Carmen',stock:8},{name:'Seed of Memory',stock:3},
+      {name:'墙洞 Hole in the Wall',stock:6},{name:'Deep Simulator 深渊模拟器',stock:4},{name:'Of Birds and Factories',stock:9},
+  ]},
+  { dir:'push', ts: Date.now()-7200000, device:'device-a3f2', eventDay:3,
+    txns:[...DAY3_PARTIAL, ...DAY2_TXNS, ...DAY1_TXNS],
+    stock:[
+      {name:'Three Stories 三个故事',stock:8},{name:'卡门 Carmen',stock:9},{name:'Seed of Memory',stock:4},
+      {name:'墙洞 Hole in the Wall',stock:6},{name:'Deep Simulator 深渊模拟器',stock:4},{name:'Of Birds and Factories',stock:10},
+  ]},
+  { dir:'push', ts: Date.now()-86400000+3600000*6, device:'device-a3f2', eventDay:2,
+    txns:[...DAY2_TXNS, ...DAY1_TXNS],
+    stock:[
+      {name:'Three Stories 三个故事',stock:9},{name:'卡门 Carmen',stock:10},{name:'Seed of Memory',stock:5},
+      {name:'墙洞 Hole in the Wall',stock:8},{name:'Deep Simulator 深渊模拟器',stock:5},{name:'Of Birds and Factories',stock:10},
+  ]},
+  { dir:'pull', ts: Date.now()-86400000+3600000*2, device:'device-b1c9', eventDay:1,
+    txns:[...DAY1_TXNS],
+    stock:[
+      {name:'Three Stories 三个故事',stock:10},{name:'卡门 Carmen',stock:10},{name:'Seed of Memory',stock:5},
+      {name:'墙洞 Hole in the Wall',stock:8},{name:'Deep Simulator 深渊模拟器',stock:5},{name:'Of Birds and Factories',stock:10},
+  ]},
+];
+
+let expandedHistory = -1; // which history row is expanded
+
+function renderSettings(el) {
+  const eventActive = eventDay > 0;
+  const todayN = MOCK_TXNS.filter(x => x.day === eventDay).length;
+
+  // History rows
+  let histHtml = '';
+  MOCK_HISTORY.forEach((h, i) => {
+    const open = expandedHistory === i;
+    const txnTotal = h.txns.reduce((s,x) => s + x.total, 0);
+    histHtml += `<div class="shist-row" onclick="expandedHistory=${open?-1:i};render()" style="cursor:pointer">
+      <span class="shist-dir ${h.dir}">${h.dir.toUpperCase()}</span>
+      <span class="shist-time">${timeStr(h.ts)}</span>
+      <span class="shist-dev">${h.device}</span>
+      <span style="font-size:11px;color:var(--t3);margin-left:auto">Day ${h.eventDay} \u00b7 ${h.txns.length}tx \u00b7 ${fmt(txnTotal)}</span>
+      <span class="shist-restore">${open?'\u25B4':'\u25BE'}</span>
+    </div>`;
+    if (open) {
+      const totalStock = h.stock.reduce((s,x) => s + x.stock, 0);
+      histHtml += `<div class="shist-detail">`;
+      // Sales — grouped by day
+      histHtml += `<div class="shist-detail-hdr"><span>Sales (${h.txns.length})</span><span>${fmt(txnTotal)}</span></div>`;
+      let lastTxDay = 0;
+      h.txns.forEach(tx => {
+        if (tx.day !== lastTxDay) {
+          lastTxDay = tx.day;
+          histHtml += `<div style="font-size:10px;font-weight:600;color:var(--t3);padding:5px 0 2px;margin-top:${lastTxDay===h.txns[0].day?0:4}px;letter-spacing:.3px">\u2014 Day ${tx.day} \u2014</div>`;
+        }
+        histHtml += `<div class="shist-detail-row">
+          <span class="shist-detail-name"><span style="color:var(--t3);margin-right:4px">${tx.time}</span>${tx.sum}</span>
+          <span class="shist-detail-stock" style="color:${PAY_COLORS[tx.pay]}">${fmt(tx.total)}</span>
+        </div>`;
+      });
+      // Stock
+      histHtml += `<div class="shist-detail-hdr" style="margin-top:8px"><span>Stock (${totalStock} copies)</span></div>`;
+      h.stock.forEach(s => {
+        histHtml += `<div class="shist-detail-row">
+          <span class="shist-detail-name">${s.name}</span>
+          <span class="shist-detail-stock${s.stock===0?' zero':''}">${s.stock}</span>
+        </div>`;
+      });
+      histHtml += `<div class="shist-detail-actions">
+        <button class="sbtn" onclick="event.stopPropagation();alert('Demo only \u2014 would restore all data to this point: ${h.txns.length} sales, stock counts, Day ${h.eventDay}')">Restore to this</button>
+      </div></div>`;
+    }
+  });
+
+  el.innerHTML = `<div class="settings">
+    ${!eventActive
+      ? `<div class="srow">
+          <span class="srow-label">Multi-day</span>
+          <button class="sbtn" onclick="startEvent()">Start</button>
+        </div>`
+      : `<div class="srow">
+          <span class="srow-day"><span class="srow-dot"></span>Day ${eventDay}</span>
+          <span style="flex:1"></span>
+          <button class="sbtn" onclick="addNewDay()">+ New Day</button>
+        </div>`
+    }
+
+    <div class="spair">
+      <button class="sbtn" onclick="alert('Demo only')">Push Stock</button>
+      <button class="sbtn" onclick="alert('Demo only')">Pull Stock</button>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--t3);margin:-2px 0 2px">device-a3f2</div>
+
+    <div class="shist">${histHtml}</div>
+
+    <div class="srow">
+      <span class="srow-label">Reset Today + Restock<br><span class="srow-sub">${todayN} transaction${todayN!==1?'s':''}</span></span>
+      <button class="sbtn sbtn-dn" onclick="alert('Demo only')">Reset</button>
+    </div>
+
+    <div class="surl-row">
+      <input value="https://script.google.com/macros/s/\u2026/exec" readonly />
+      <button class="sbtn" onclick="alert('Demo only')">Save</button>
+    </div>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>

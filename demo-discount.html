@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Discount Toggle Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:#111; color:#f2f2f2; display:flex; justify-content:center; min-height:100vh; }
+  .wrap { width:100%; max-width:430px; padding:20px 16px 180px; }
+  h3 { font-size:13px; opacity:.5; margin-bottom:12px; text-transform:uppercase; letter-spacing:.5px; }
+
+  /* Cart Panel mock */
+  .cp { position:fixed; bottom:60px; left:50%; transform:translateX(-50%); width:100%; max-width:430px; background:#1a1a1a; border-radius:18px 18px 0 0; box-shadow:0 -4px 24px rgba(0,0,0,.5); z-index:10; }
+  .cp-handle { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; cursor:pointer; }
+  .cp-sum { font-size:15px; }
+  .cp-arrow { font-size:14px; opacity:.5; }
+  .cp-body { padding:0 20px 18px; }
+
+  /* Item list */
+  .cl { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .cl-name { flex:1; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cl-qty { font-size:12px; opacity:.6; }
+  .cl-tot { font-size:13px; font-weight:600; min-width:54px; text-align:right; }
+  .cl-tot.discounted { color:#f5a623; text-decoration:none; }
+  .cl-orig { font-size:11px; opacity:.4; text-decoration:line-through; min-width:54px; text-align:right; }
+
+  /* Discount toggle — same row as payment pills */
+  .discount-toggle { padding:10px; border-radius:10px; border:1.5px solid rgba(255,255,255,.12); background:transparent; color:#aaa; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .discount-toggle.on { background:rgba(245,166,35,.15); border-color:#f5a623; color:#f5a623; }
+
+  /* Payment pills */
+  .pay-pills { display:flex; gap:8px; margin:10px 0; }
+  .ppill { flex:1; padding:10px; border-radius:10px; border:1.5px solid rgba(255,255,255,.12); background:transparent; color:#aaa; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; }
+  .ppill.s-venmo { background:rgba(0,140,255,.15); border-color:#008cff; color:#5bb8ff; }
+  .ppill.s-zelle  { background:rgba(108,92,231,.15); border-color:#6c5ce7; color:#a29bfe; }
+  .ppill.s-cash  { background:rgba(0,184,148,.15); border-color:#00b894; color:#55efc4; }
+
+  /* Note */
+  .note-input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#f2f2f2; font-size:13px; font-family:inherit; margin-bottom:10px; }
+
+  /* Sold button */
+  .btn-sold { width:100%; padding:14px; border-radius:12px; border:none; background:#f2f2f2; color:#111; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; }
+  .btn-sold .orig-price { text-decoration:line-through; opacity:.4; font-weight:500; margin-right:4px; font-size:13px; }
+  .btn-sold .disc-price { color:#b8860b; }
+
+  /* Savings badge */
+  .savings { text-align:center; font-size:11px; color:#f5a623; opacity:.7; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h3>Demo: 30% Off Toggle in Checkout</h3>
+  <p style="font-size:13px;opacity:.5;line-height:1.5;">This is a standalone mockup. Tap the "30% Off" button to see how the discount applies to the cart. No app code is changed.</p>
+</div>
+
+<div class="cp">
+  <div class="cp-handle">
+    <span class="cp-sum"><strong id="count">3 items</strong> · <span id="header-total">$60.00</span></span>
+    <span class="cp-arrow">↓</span>
+  </div>
+  <div class="cp-body">
+    <div id="cart-items"></div>
+
+    <div class="pay-pills">
+      <button class="ppill s-venmo">Venmo</button>
+      <button class="ppill">Zelle</button>
+      <button class="ppill">Cash</button>
+      <button class="discount-toggle" id="disc-btn" onclick="toggleDiscount()">-30%</button>
+    </div>
+    <input class="note-input" id="note" placeholder="Note (optional)" />
+    <div class="savings" id="savings" style="display:none"></div>
+    <button class="btn-sold" id="sold-btn">Sold  $60.00</button>
+  </div>
+</div>
+
+<script>
+const ITEMS = [
+  { name: 'Three Stories 三个故事', qty: 1, price: 22 },
+  { name: '卡门 Carmen', qty: 1, price: 18 },
+  { name: 'Seed of Memory', qty: 1, price: 20 },
+];
+
+let discountOn = false;
+
+function fmt(n) { return '$' + n.toFixed(2); }
+
+function toggleDiscount() {
+  discountOn = !discountOn;
+  render();
+}
+
+function render() {
+  const btn = document.getElementById('disc-btn');
+  btn.classList.toggle('on', discountOn);
+
+  const factor = discountOn ? 0.7 : 1;
+  const cartEl = document.getElementById('cart-items');
+  let html = '';
+
+  ITEMS.forEach(it => {
+    const orig = it.price * it.qty;
+    const disc = +(orig * factor).toFixed(2);
+    if (discountOn) {
+      html += `<div class="cl">
+        <span class="cl-name">${it.name}</span>
+        <span class="cl-qty">×${it.qty}</span>
+        <span class="cl-orig">${fmt(orig)}</span>
+        <span class="cl-tot discounted">${fmt(disc)}</span>
+      </div>`;
+    } else {
+      html += `<div class="cl">
+        <span class="cl-name">${it.name}</span>
+        <span class="cl-qty">×${it.qty}</span>
+        <span class="cl-tot">${fmt(orig)}</span>
+      </div>`;
+    }
+  });
+  cartEl.innerHTML = html;
+
+  const origTotal = ITEMS.reduce((s, it) => s + it.price * it.qty, 0);
+  const discTotal = +(origTotal * factor).toFixed(2);
+
+  document.getElementById('header-total').textContent = fmt(discTotal);
+  document.getElementById('count').textContent = ITEMS.reduce((s, it) => s + it.qty, 0) + ' items';
+
+  const soldBtn = document.getElementById('sold-btn');
+  const savingsEl = document.getElementById('savings');
+  const noteEl = document.getElementById('note');
+
+  if (discountOn) {
+    soldBtn.innerHTML = `Sold  <span class="orig-price">${fmt(origTotal)}</span> <span class="disc-price">${fmt(discTotal)}</span>`;
+    savingsEl.style.display = 'block';
+    savingsEl.textContent = `Saving ${fmt(origTotal - discTotal)} (30% off)`;
+    if (!noteEl.value.includes('30% off')) noteEl.value = noteEl.value ? noteEl.value + ' | 30% off' : '30% off';
+  } else {
+    soldBtn.textContent = `Sold  ${fmt(origTotal)}`;
+    savingsEl.style.display = 'none';
+    noteEl.value = noteEl.value.replace(/ ?\|? ?30% off/g, '');
+  }
+}
+
+render();
+</script>
+</body>
+</html>

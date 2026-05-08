@@ -8,6 +8,13 @@ const tstr = d => { const dt = new Date(d), h = dt.getHours(), m = String(dt.get
 const ld   = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const sv   = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const isToday = ts => new Date(ts).toDateString() === new Date().toDateString();
+const inToday = (tx, eventDay) => eventDay > 0 ? tx.day === eventDay : isToday(tx.ts);
+const inEvent = tx => tx.day > 0;
+const getEventDays = txns => {
+  const set = new Set();
+  txns.forEach(tx => { if (tx.day) set.add(tx.day); });
+  return [...set].sort((a, b) => a - b);
+};
 const PC = { venmo: 'var(--ve)', zelle: 'var(--ze)', cash: 'var(--ca)' };
 const PAY_LABEL = { venmo: 'Venmo', zelle: 'Zelle', cash: 'Cash' };
 
@@ -296,11 +303,15 @@ function ConfirmOverlay({ title, body, cancelLabel, confirmLabel, onCancel, onCo
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
-function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
-  const t = useMemo(() => txns.filter(x => isToday(x.ts)).reduce(
+function Header({ txns, eventDay, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
+  const t = useMemo(() => txns.filter(x => inToday(x, eventDay)).reduce(
     (a, x) => { a.tot += x.total; a[x.pay] = (a[x.pay] || 0) + x.total; return a; },
     { tot: 0, venmo: 0, zelle: 0, cash: 0 }
-  ), [txns]);
+  ), [txns, eventDay]);
+  const eventTot = useMemo(() => eventDay > 0
+    ? txns.filter(inEvent).reduce((s, x) => s + x.total, 0)
+    : 0, [txns, eventDay]);
+  const showEventTot = eventDay > 1 && eventTot !== t.tot;
   return (
     <div className="hdr">
       <div className="hdr-top">
@@ -311,7 +322,7 @@ function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
               <button className="btn-done" onClick={onDone}>Done</button>
             </>
           : <>
-              <span className="hdr-title">Vending Tracker</span>
+              <span className="hdr-title">Vending Tracker{eventDay > 0 ? ` · Day ${eventDay}` : ''}</span>
               <div className="hdr-edit-btns">
                 <button className="btn-edit" onClick={onEdit}>Edit</button>
                 <button className={`sync sync-${sync}`} onClick={sync === 'error' ? onRetry : undefined}>
@@ -324,6 +335,7 @@ function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
       {!editMode && (
         <div className="hdr-totals">
           <span className="grand">{fmt(t.tot)}</span>
+          {showEventTot && <span className="grand-total">/ {fmt(eventTot)}</span>}
           <div className="chips">
             {t.venmo > 0 && <span className="chip chip-ve">{PAY_LABEL.venmo} {fmt(t.venmo)}</span>}
             {t.zelle > 0 && <span className="chip chip-ze">{PAY_LABEL.zelle} {fmt(t.zelle)}</span>}
@@ -336,25 +348,52 @@ function Header({ txns, sync, onRetry, editMode, onEdit, onDone, onCancel }) {
 }
 
 // ── LogView ───────────────────────────────────────────────────────────────────
-function LogView({ txns, onEditTxn, onDeleteTxn }) {
-  const [filter,      setFilter]      = useState('all');
+function LogView({ txns, eventDay, onEditTxn, onDeleteTxn }) {
+  const [dayFilter,   setDayFilter]   = useState('today'); // 'today' | 'all' | day number
+  const [payFilter,   setPayFilter]   = useState('all');
   const [exp,         setExp]         = useState(null);
   const [editingNote, setEditingNote] = useState('');
 
-  const rows = useMemo(() => txns
-    .filter(x => isToday(x.ts) && (filter === 'all' || x.pay === filter))
-    .sort((a, b) => b.ts - a.ts), [txns, filter]);
+  const eventDays = useMemo(() => getEventDays(txns), [txns]);
+  const showAllPill = eventDay > 0 && (eventDays.length > 1 || (eventDays.length >= 1 && !eventDays.includes(eventDay)));
+
+  const rows = useMemo(() => {
+    let f;
+    if (dayFilter === 'today') f = txns.filter(x => inToday(x, eventDay));
+    else if (dayFilter === 'all') f = txns.filter(inEvent);
+    else f = txns.filter(x => x.day === dayFilter);
+    if (payFilter !== 'all') f = f.filter(x => x.pay === payFilter);
+    return f.sort((a, b) => {
+      const ad = a.day || 0, bd = b.day || 0;
+      if (bd !== ad) return bd - ad;
+      return b.ts - a.ts;
+    });
+  }, [txns, eventDay, dayFilter, payFilter]);
 
   const toggle = tx => {
     if (exp === tx.id) { setExp(null); }
     else { setExp(tx.id); setEditingNote(tx.note || ''); }
   };
 
+  const dayPills = eventDay > 0;
+
   return (
     <div>
       <div className="fbar">
+        {dayPills && (
+          <>
+            <button className={`fchip${dayFilter === 'today' ? ' on' : ''}`} onClick={() => setDayFilter('today')}>Today</button>
+            {eventDays.filter(d => d !== eventDay).map(dn => (
+              <button key={dn} className={`fchip${dayFilter === dn ? ' on' : ''}`} onClick={() => setDayFilter(dn)}>Day {dn}</button>
+            ))}
+            {showAllPill && (
+              <button className={`fchip${dayFilter === 'all' ? ' on' : ''}`} onClick={() => setDayFilter('all')}>All</button>
+            )}
+            <div className="fbar-sep" />
+          </>
+        )}
         {['all', 'venmo', 'zelle', 'cash'].map(f => (
-          <button key={f} className={`fchip${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}>
+          <button key={f} className={`fchip${payFilter === f ? ' on' : ''}`} onClick={() => setPayFilter(f)}>
             {f === 'all' ? 'All' : PAY_LABEL[f]}
           </button>
         ))}
@@ -362,65 +401,91 @@ function LogView({ txns, onEditTxn, onDeleteTxn }) {
       {!rows.length && (
         <div className="empty">
           <div className="empty-icon">—</div>
-          <div>No sales yet{filter !== 'all' ? ` · ${PAY_LABEL[filter]}` : ' today'}</div>
+          <div>
+            No sales
+            {dayFilter === 'today' ? (eventDay > 0 ? ` on Day ${eventDay}` : ' today')
+              : dayFilter === 'all' ? ''
+              : ` on Day ${dayFilter}`}
+            {payFilter !== 'all' ? ` · ${PAY_LABEL[payFilter]}` : ''}
+          </div>
         </div>
       )}
-      {rows.map(tx => {
-        const open = exp === tx.id;
-        const sum  = tx.items.map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ');
-        return (
-          <div className="txrow" key={tx.id}>
-            <div className="txmain" onClick={() => toggle(tx)}>
-              <span className="txtime">{tstr(tx.ts)}</span>
-              <div className="txinfo">
-                <div className="txsum">{sum}</div>
-                {tx.note && <div className="txnote">"{tx.note}"</div>}
-              </div>
-              <div className="txr">
-                <span className="txtot">{fmt(tx.total)}</span>
-                <span className="tx-pay" style={{ color: PC[tx.pay] }}>{PAY_LABEL[tx.pay]}</span>
-              </div>
-            </div>
-            {open && (
-              <div className="tx-edit">
-                <div className="tx-edit-lines">
-                  {tx.items.map((it, i) => (
-                    <div className="txli" key={i}>
-                      <span>{it.name} ×{it.qty}</span>
-                      <span>{fmt(it.lt)}</span>
-                    </div>
-                  ))}
+      {dayFilter === 'all'
+        ? (() => {
+            let lastDay = 0;
+            return rows.map(tx => {
+              const showDivider = tx.day !== lastDay;
+              lastDay = tx.day;
+              return (
+                <div key={tx.id}>
+                  {showDivider && <div className="date-divider">— Day {tx.day} —</div>}
+                  {renderTxRow(tx, exp, toggle, editingNote, setEditingNote, onEditTxn, onDeleteTxn, setExp)}
                 </div>
-                <div className="pay-pills tx-edit-pay">
-                  {['venmo', 'zelle', 'cash'].map(m => (
-                    <button key={m} className={`ppill${tx.pay === m ? ` s-${m}` : ''}`}
-                      onClick={() => onEditTxn(tx.id, { pay: m })}>
-                      {PAY_LABEL[m]}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  className="note-input"
-                  placeholder="Note (optional)"
-                  value={editingNote}
-                  onChange={e => setEditingNote(e.target.value)}
-                  onBlur={() => onEditTxn(tx.id, { note: editingNote })}
-                />
-                <button className="tx-delete-btn" onClick={() => { onDeleteTxn(tx.id); setExp(null); }}>
-                  Delete Transaction
-                </button>
+              );
+            });
+          })()
+        : rows.map(tx => renderTxRow(tx, exp, toggle, editingNote, setEditingNote, onEditTxn, onDeleteTxn, setExp))
+      }
+    </div>
+  );
+}
+
+function renderTxRow(tx, exp, toggle, editingNote, setEditingNote, onEditTxn, onDeleteTxn, setExp) {
+  const open = exp === tx.id;
+  const sum  = tx.items.map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ');
+  return (
+    <div className="txrow" key={tx.id}>
+      <div className="txmain" onClick={() => toggle(tx)}>
+        <span className="txtime">{tstr(tx.ts)}</span>
+        <div className="txinfo">
+          <div className="txsum">{sum}</div>
+          {tx.note && <div className="txnote">"{tx.note}"</div>}
+        </div>
+        <div className="txr">
+          <span className="txtot">{fmt(tx.total)}</span>
+          <span className="tx-pay" style={{ color: PC[tx.pay] }}>{PAY_LABEL[tx.pay]}</span>
+        </div>
+      </div>
+      {open && (
+        <div className="tx-edit">
+          <div className="tx-edit-lines">
+            {tx.items.map((it, i) => (
+              <div className="txli" key={i}>
+                <span>{it.name} ×{it.qty}</span>
+                <span>{fmt(it.lt)}</span>
               </div>
-            )}
+            ))}
           </div>
-        );
-      })}
+          <div className="pay-pills tx-edit-pay">
+            {['venmo', 'zelle', 'cash'].map(m => (
+              <button key={m} className={`ppill${tx.pay === m ? ` s-${m}` : ''}`}
+                onClick={() => onEditTxn(tx.id, { pay: m })}>
+                {PAY_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <input
+            className="note-input"
+            placeholder="Note (optional)"
+            value={editingNote}
+            onChange={e => setEditingNote(e.target.value)}
+            onBlur={() => onEditTxn(tx.id, { note: editingNote })}
+          />
+          <button className="tx-delete-btn" onClick={() => { onDeleteTxn(tx.id); setExp(null); }}>
+            Delete Transaction
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── SummaryView ───────────────────────────────────────────────────────────────
-function SummaryView({ txns }) {
-  const rows = txns.filter(x => isToday(x.ts));
+function SummaryView({ txns, eventDay }) {
+  const [scope, setScope] = useState('today'); // 'today' | 'total'
+  const showScope = eventDay > 0 && txns.some(x => x.day && x.day !== eventDay);
+  const effectiveScope = showScope ? scope : 'today';
+  const rows = effectiveScope === 'total' ? txns.filter(inEvent) : txns.filter(x => inToday(x, eventDay));
   const d = useMemo(() => rows.reduce((a, x) => {
     a.rev += x.total; a[x.pay] = (a[x.pay] || 0) + x.total;
     x.items.forEach(it => { if (!a.im[it.name]) a.im[it.name] = { c: 0, r: 0 }; a.im[it.name].c += it.qty; a.im[it.name].r += it.lt; });
@@ -430,10 +495,17 @@ function SummaryView({ txns }) {
   const avg = rows.length ? d.rev / rows.length : 0;
   const pct = n => d.rev > 0 ? Math.round(n / d.rev * 100) + '%' : '—';
   const bw  = n => d.rev > 0 ? Math.round(n / d.rev * 100) + '%' : '0%';
+  const revLabel = effectiveScope === 'total' ? 'Event Revenue' : (eventDay > 0 ? `Day ${eventDay} Revenue` : 'Total Revenue');
   return (
     <div className="sw">
+      {showScope && (
+        <div className="scope-toggle">
+          <button className={`scope-btn${scope === 'today' ? ' on' : ''}`} onClick={() => setScope('today')}>Today</button>
+          <button className={`scope-btn${scope === 'total' ? ' on' : ''}`} onClick={() => setScope('total')}>Total</button>
+        </div>
+      )}
       <div className="totcard">
-        <div className="totlbl">Total Revenue</div>
+        <div className="totlbl">{revLabel}</div>
         <div className="totamt">{fmt(d.rev)}</div>
       </div>
       <div className="statrow">
@@ -470,17 +542,34 @@ function SummaryView({ txns }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, syncLog }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
-  const todayN = txns.filter(x => isToday(x.ts)).length;
+  const [expandedHist, setExpandedHist] = useState(-1);
+  const todayN = txns.filter(x => inToday(x, eventDay)).length;
+  const todayLabel = eventDay > 0 ? `Day ${eventDay}` : "Today";
+
   return (
     <div className="aw">
-      <div className="asec-hdr"><span className="asec-lbl">Google Sheets</span></div>
-      <div className="abox">
-        <div className="albl">Apps Script Web App URL</div>
-        <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
-        <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save</button></div>
-      </div>
+      <div className="asec-hdr"><span className="asec-lbl">Multi-Day Event</span></div>
+      {eventDay === 0 ? (
+        <div className="srow">
+          <span className="srow-label">No event active<br /><span className="srow-sub">Tap Start to begin tracking by day</span></span>
+          <button className="sbtn" onClick={onStartEvent}>Start</button>
+        </div>
+      ) : (
+        <>
+          <div className="srow">
+            <span className="srow-day"><span className="srow-dot" />Day {eventDay}</span>
+            <span style={{ flex: 1 }} />
+            <button className="sbtn" onClick={onAddNewDay}>+ New Day</button>
+          </div>
+          <div className="srow" style={{ marginTop: 8 }}>
+            <span className="srow-label">End event<br /><span className="srow-sub">Clears day tags. Sales kept by timestamp.</span></span>
+            <button className="sbtn sbtn-dn" onClick={onEndEvent}>End</button>
+          </div>
+        </>
+      )}
+
       <div className="asec-hdr"><span className="asec-lbl">Stock Sync (Handoff)</span></div>
       <div className="abox">
         <div className="albl" style={{marginBottom:8,opacity:.7,fontSize:11}}>Device: {DEVICE_ID}</div>
@@ -490,20 +579,81 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onL
         </div>
         <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock to Sheets before handing off. Pull to load your partner's latest stock.</div>
       </div>
+
       {syncLog.length > 0 && (
         <>
           <div className="asec-hdr"><span className="asec-lbl">Sync History</span></div>
-          <div className="abox">
-            {syncLog.slice(0, 10).map((e, i) => (
-              <div key={i} className="sync-log-entry" style={{fontSize:11,padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,.06)',opacity: i === 0 ? 1 : 0.6}}>
-                <span style={{color: e.dir === 'push' ? 'var(--ze)' : 'var(--ve)', fontWeight:600}}>{e.dir === 'push' ? 'PUSH' : 'PULL'}</span>
-                {' '}<span style={{opacity:.7}}>{tstr(e.ts)}</span>
-                {' '}<span style={{opacity:.5}}>({e.device})</span>
-              </div>
-            ))}
+          <div className="shist">
+            {syncLog.slice(0, 10).map((e, i) => {
+              const open = expandedHist === i;
+              const hasSnap = !!(e.txns || e.itemsSnap);
+              const snapTxns = e.txns || [];
+              const snapItems = e.itemsSnap || [];
+              const snapTot = snapTxns.reduce((s, x) => s + x.total, 0);
+              const snapStock = snapItems.reduce((s, x) => s + (x.stock ?? 0), 0);
+              return (
+                <div key={i}>
+                  <div className="shist-row" onClick={() => hasSnap && setExpandedHist(open ? -1 : i)} style={{ cursor: hasSnap ? 'pointer' : 'default' }}>
+                    <span className={`shist-dir ${e.dir}`}>{e.dir.toUpperCase()}</span>
+                    <span className="shist-time">{tstr(e.ts)}</span>
+                    <span className="shist-dev">{e.device}</span>
+                    {hasSnap ? (
+                      <>
+                        <span style={{ fontSize: 11, color: 'var(--t3)', marginLeft: 'auto' }}>
+                          {e.eventDay > 0 ? `Day ${e.eventDay} · ` : ''}{snapTxns.length}tx · {fmt(snapTot)}
+                        </span>
+                        <span className="shist-restore">{open ? '▴' : '▾'}</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--t3)', marginLeft: 'auto', opacity: .5 }}>(legacy)</span>
+                    )}
+                  </div>
+                  {open && hasSnap && (
+                    <div className="shist-detail">
+                      <div className="shist-detail-hdr"><span>Sales ({snapTxns.length})</span><span>{fmt(snapTot)}</span></div>
+                      {(() => {
+                        const sorted = [...snapTxns].sort((a, b) => {
+                          const ad = a.day || 0, bd = b.day || 0;
+                          if (bd !== ad) return bd - ad;
+                          return b.ts - a.ts;
+                        });
+                        let lastDay = -1;
+                        return sorted.map((tx, idx) => {
+                          const div = tx.day !== lastDay && tx.day;
+                          lastDay = tx.day;
+                          return (
+                            <div key={tx.id || idx}>
+                              {div && <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t3)', padding: '5px 0 2px', letterSpacing: '.3px' }}>— Day {tx.day} —</div>}
+                              <div className="shist-detail-row">
+                                <span className="shist-detail-name">
+                                  <span style={{ color: 'var(--t3)', marginRight: 4 }}>{tstr(tx.ts)}</span>
+                                  {tx.items.map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ')}
+                                </span>
+                                <span className="shist-detail-stock" style={{ color: PC[tx.pay] }}>{fmt(tx.total)}</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                      <div className="shist-detail-hdr" style={{ marginTop: 8 }}><span>Stock ({snapStock} copies)</span></div>
+                      {snapItems.map((s, idx) => (
+                        <div key={idx} className="shist-detail-row">
+                          <span className="shist-detail-name">{s.name}</span>
+                          <span className={`shist-detail-stock${(s.stock ?? 0) === 0 ? ' zero' : ''}`}>{s.stock ?? '∞'}</span>
+                        </div>
+                      ))}
+                      <div className="shist-detail-actions">
+                        <button className="sbtn" onClick={ev => { ev.stopPropagation(); onRestoreSnapshot(i); }}>Restore to this</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
+
       <div className="asec-hdr"><span className="asec-lbl">Stock</span></div>
       <div className="abox">
         <button className="btn-restore" onClick={onRestoreStock}>Restore Original Stock Counts</button>
@@ -513,10 +663,16 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, onReset, onRestoreStock, onL
         <button className="btn-restore" onClick={onLoadDefaults}>Load Default Item List</button>
         <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Replaces all items with the baked-in list. Sales history kept.</div>
       </div>
+      <div className="asec-hdr"><span className="asec-lbl">Google Sheets</span></div>
+      <div className="abox">
+        <div className="albl">Apps Script Web App URL</div>
+        <input className="aurl" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+        <div className="aacts"><button className="btn-sm" onClick={() => setSheetsUrl(url)}>Save</button></div>
+      </div>
       <div className="asec-hdr"><span className="asec-lbl">Danger Zone</span></div>
       <div className="abox">
         <button className="btn-danger" onClick={onReset}>
-          Reset Today's Sales + Restock ({todayN} transaction{todayN !== 1 ? 's' : ''})
+          Reset {todayLabel}'s Sales + Restock ({todayN} transaction{todayN !== 1 ? 's' : ''})
         </button>
       </div>
     </div>
@@ -553,6 +709,7 @@ export default function App() {
   const [txns,       setTxns]       = useState(() => ld('vt_txns', []));
   const [cart,       setCart]       = useState([]);
   const [tab,        setTab]        = useState('items');
+  const [eventDay,   setEventDay]   = useState(() => ld('vt_eventday', 0));
 
   // edit mode
   const [editMode,         setEditMode]         = useState(false);
@@ -575,11 +732,12 @@ export default function App() {
   const [queue,     setQueue]      = useState(() => ld('vt_q', []));
   const [lastPay,   setLastPay]    = useState(() => ld('vt_lastpay', ''));
 
-  useEffect(() => sv('vt_items',   items),    [items]);
-  useEffect(() => sv('vt_txns',    txns),     [txns]);
-  useEffect(() => sv('vt_url',     sheetsUrl),[sheetsUrl]);
-  useEffect(() => sv('vt_synclog', syncLog),  [syncLog]);
-  useEffect(() => sv('vt_q',     queue),    [queue]);
+  useEffect(() => sv('vt_items',    items),    [items]);
+  useEffect(() => sv('vt_txns',     txns),     [txns]);
+  useEffect(() => sv('vt_url',      sheetsUrl),[sheetsUrl]);
+  useEffect(() => sv('vt_synclog',  syncLog),  [syncLog]);
+  useEffect(() => sv('vt_q',        queue),    [queue]);
+  useEffect(() => sv('vt_eventday', eventDay), [eventDay]);
 
   // flush sync queue
   useEffect(() => {
@@ -722,6 +880,7 @@ export default function App() {
     const txn = {
       id:    uid(),
       ts:    Date.now(),
+      day:   eventDay > 0 ? eventDay : undefined,
       items: cart.map(c => {
         const it = items.find(i => i.id === c.id);
         const up = +(it.price * factor).toFixed(2);
@@ -795,8 +954,9 @@ export default function App() {
   };
 
   const resetToday = async () => {
-    if (!confirm("Reset today's sales and restore stock?")) return;
-    const todayTxns = txns.filter(x => isToday(x.ts));
+    const label = eventDay > 0 ? `Day ${eventDay}` : "today";
+    if (!confirm(`Reset ${label}'s sales and restore stock?`)) return;
+    const todayTxns = txns.filter(x => inToday(x, eventDay));
     const sold = {};
     todayTxns.forEach(txn => txn.items.forEach(it => {
       sold[it.id] = (sold[it.id] || 0) + it.qty;
@@ -807,7 +967,7 @@ export default function App() {
       return it;
     });
     setItems(newItems);
-    setTxns(p => p.filter(x => !isToday(x.ts)));
+    setTxns(p => p.filter(x => !inToday(x, eventDay)));
     setQueue(p => p.filter(x => !todayTxns.find(t => t.id === x.id)));
     setUndoTxn(null);
     pushItemsSync(sheetsUrl, newItems);
@@ -816,6 +976,30 @@ export default function App() {
       const ok = await pushDeleteTransactions(sheetsUrl, todayTxns.map(t => t.id));
       setSync(ok ? 'synced' : 'error');
     }
+  };
+
+  const startEvent = () => {
+    if (!confirm("Start multi-day event? Today's sales become Day 1.")) return;
+    setEventDay(1);
+    setTxns(p => p.map(t => {
+      if (isToday(t.ts) && !t.day) return { ...t, day: 1 };
+      return t;
+    }));
+  };
+
+  const addNewDay = () => {
+    const next = eventDay + 1;
+    if (!confirm(`Start Day ${next}? All new sales will be tagged Day ${next}.\n\n(You cannot undo this.)`)) return;
+    setEventDay(next);
+  };
+
+  const endEvent = () => {
+    if (!confirm("End the event? Day tags will be cleared from all sales (history is kept by timestamp). You can start a new event later.")) return;
+    setEventDay(0);
+    setTxns(p => p.map(t => {
+      if (t.day) { const { day, ...rest } = t; return rest; }
+      return t;
+    }));
   };
 
   const restoreOriginalStock = () => {
@@ -828,11 +1012,21 @@ export default function App() {
     pushItemsSync(sheetsUrl, newItems);
   };
 
+  const snapshot = (newItems, newTxns) => ({
+    eventDay,
+    txns: newTxns.map(t => ({
+      id: t.id, ts: t.ts, day: t.day,
+      items: t.items.map(i => ({ id: i.id, name: i.name, up: i.up, qty: i.qty, lt: i.lt })),
+      total: t.total, pay: t.pay, note: t.note || '',
+    })),
+    itemsSnap: newItems.filter(i => i.active).map(i => ({ id: i.id, name: i.name, price: i.price, stock: i.stock })),
+  });
+
   const pushStock = () => {
     if (!confirm("Push current stock to Google Sheets? This overwrites the shared stock.")) return;
     pushItemsSync(sheetsUrl, items, true);
-    const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, summary: items.filter(i => i.active).map(i => i.name + ':' + (i.stock ?? '∞')).join(', ') };
-    setSyncLog(log => [entry, ...log].slice(0, 50));
+    const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, ...snapshot(items, txns) };
+    setSyncLog(log => [entry, ...log].slice(0, 10));
   };
 
   const pullStock = async () => {
@@ -848,8 +1042,27 @@ export default function App() {
     });
     setItems(newItems);
     setSync('synced');
-    const entry = { ts: Date.now(), dir: 'pull', device: DEVICE_ID, summary: remote.map(i => i.name + ':' + (i.stock ?? '∞')).join(', ') };
-    setSyncLog(log => [entry, ...log].slice(0, 50));
+    const entry = { ts: Date.now(), dir: 'pull', device: DEVICE_ID, ...snapshot(newItems, txns) };
+    setSyncLog(log => [entry, ...log].slice(0, 10));
+  };
+
+  const restoreSnapshot = idx => {
+    const entry = syncLog[idx];
+    if (!entry || (!entry.txns && !entry.itemsSnap)) return;
+    if (!confirm(`Restore to this snapshot? Local sales and stock will be replaced with the snapshot from ${tstr(entry.ts)}.\n\n(This is local only — Google Sheets is not changed.)`)) return;
+    if (entry.itemsSnap) {
+      const stockMap = new Map(entry.itemsSnap.map(s => [s.id, s.stock]));
+      setItems(prev => prev.map(it => stockMap.has(it.id) ? { ...it, stock: stockMap.get(it.id) } : it));
+    }
+    if (entry.txns) {
+      setTxns(entry.txns.map(t => ({
+        id: t.id, ts: t.ts, day: t.day,
+        items: t.items.map(i => ({ id: i.id, name: i.name, up: i.up, qty: i.qty, lt: i.lt })),
+        total: t.total, pay: t.pay, note: t.note || '',
+        synced: true,
+      })));
+    }
+    if (typeof entry.eventDay === 'number') setEventDay(entry.eventDay);
   };
 
   const loadDefaultItems = () => {
@@ -885,7 +1098,7 @@ export default function App() {
   return (
     <>
       <Header
-        txns={txns} sync={sync} onRetry={() => setQueue(q => [...q])}
+        txns={txns} eventDay={eventDay} sync={sync} onRetry={() => setQueue(q => [...q])}
         editMode={editMode}
         onEdit={enterEdit} onDone={commitEdit} onCancel={cancelEdit}
       />
@@ -935,13 +1148,16 @@ export default function App() {
             )}
           </div>
         )}
-        {tab === 'log'   && <LogView txns={txns} onEditTxn={editTxn} onDeleteTxn={deleteTxn} />}
-        {tab === 'sum'   && <SummaryView txns={txns} />}
+        {tab === 'log'   && <LogView txns={txns} eventDay={eventDay} onEditTxn={editTxn} onDeleteTxn={deleteTxn} />}
+        {tab === 'sum'   && <SummaryView txns={txns} eventDay={eventDay} />}
         {tab === 'admin' && (
           <AdminView
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
-            txns={txns} onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
+            txns={txns} eventDay={eventDay}
+            onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
             onPushStock={pushStock} onPullStock={pullStock} syncLog={syncLog}
+            onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
+            onRestoreSnapshot={restoreSnapshot}
           />
         )}
       </div>
