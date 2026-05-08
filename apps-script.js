@@ -150,11 +150,22 @@ function setup() {
 function syncItemsSheet(items, device) {
   const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getItemsSheet(ss);
-  const last  = sheet.getLastRow();
-  if (last > 1) sheet.getRange(2, 1, last - 1, 5).clearContent();
+  // Always rewrite header row to canonical layout (self-heals any column drift)
+  const headers = ['id', 'name', 'price', 'stock', 'updated_at'];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  // Clear the entire data range, including any stale columns past col E
+  const last    = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn(), headers.length);
+  if (last > 1) sheet.getRange(2, 1, last - 1, lastCol).clearContent();
   if (items && items.length) {
-    const vals = items.map(i => [i.id || '', i.name, i.price, i.stock !== null && i.stock !== undefined ? i.stock : '∞', new Date().toISOString()]);
-    sheet.getRange(2, 1, vals.length, 5).setValues(vals);
+    const vals = items.map(i => [
+      i.id || '',
+      i.name,
+      i.price,
+      i.stock !== null && i.stock !== undefined ? i.stock : '∞',
+      new Date().toISOString(),
+    ]);
+    sheet.getRange(2, 1, vals.length, headers.length).setValues(vals);
   }
   if (device) logStockHistory(ss, items, device);
 }

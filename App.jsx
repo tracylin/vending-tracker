@@ -1045,9 +1045,8 @@ export default function App() {
 
   const downloadFromSheets = async () => {
     if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
-    const daysBack = parseInt(prompt("Download — how many days of transactions to pull?\n(Default: 30. Smaller number = skip older events.)", "30"), 10);
-    if (!daysBack || daysBack <= 0) return;
-    if (!confirm("This will overwrite your local stock counts with Sheets, and import any missing transactions. Existing local sales are kept.\n\nProceed?")) return;
+    if (!confirm("Download stock + last 7 days of transactions?\n\nLocal stock will be overwritten by Sheets. Existing local sales kept.")) return;
+    const daysBack = 7;
     setSync('syncing');
     try {
       // 1. Stock
