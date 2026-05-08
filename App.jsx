@@ -513,6 +513,25 @@ function SummaryView({ txns, eventDay }) {
         <div className="statcard"><div className="statval">{rows.length}</div><div className="statlbl">Transactions</div></div>
         <div className="statcard"><div className="statval">{fmt(avg)}</div><div className="statlbl">Avg Sale</div></div>
       </div>
+      {effectiveScope === 'total' && (() => {
+        const dayMap = {};
+        rows.forEach(x => { const dn = x.day || 0; if (!dayMap[dn]) dayMap[dn] = { rev: 0, n: 0 }; dayMap[dn].rev += x.total; dayMap[dn].n++; });
+        const dayList = Object.entries(dayMap).map(([dn, v]) => [Number(dn), v]).sort((a, b) => a[0] - b[0]);
+        if (dayList.length < 2) return null;
+        return (
+          <div className="sumsec">
+            <div className="seclbl">By Day</div>
+            {dayList.map(([dn, v]) => (
+              <div className="mrow" key={dn}>
+                <span className="mname">{dn === 0 ? 'Untagged' : `Day ${dn}`}</span>
+                <div className="mbg"><div className="mbar" style={{ width: bw(v.rev), background: dn === eventDay ? 'var(--ac)' : 'var(--t3)' }} /></div>
+                <span className="mamt">{fmt(v.rev)}</span>
+                <span className="mpct">{v.n}tx</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <div className="sumsec">
         <div className="seclbl">By Payment</div>
         {[['venmo', d.venmo, 've'], ['zelle', d.zelle, 'ze'], ['cash', d.cash, 'ca']].map(([m, amt, k]) => (
