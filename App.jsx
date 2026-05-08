@@ -975,9 +975,9 @@ export default function App() {
     pushDeleteTransactions(sheetsUrl, [id]);
   };
 
-  const resetToday = async () => {
+  const resetToday = () => {
     const label = eventDay > 0 ? `Day ${eventDay}` : "today";
-    if (!confirm(`Reset ${label}'s sales and restore stock?`)) return;
+    if (!confirm(`Reset ${label}'s sales and restore stock LOCALLY ONLY?\n\nGoogle Sheets is NOT touched. Sales remain in the Sales sheet; stock in the Items sheet is unchanged. To reconcile, use Download (which recalculates stock from sales).`)) return;
     const todayTxns = txns.filter(x => inToday(x, eventDay));
     const sold = {};
     todayTxns.forEach(txn => txn.items.forEach(it => {
@@ -992,12 +992,6 @@ export default function App() {
     setTxns(p => p.filter(x => !inToday(x, eventDay)));
     setQueue(p => p.filter(x => !todayTxns.find(t => t.id === x.id)));
     setUndoTxn(null);
-    pushItemsSync(sheetsUrl, newItems);
-    if (sheetsUrl && todayTxns.length) {
-      setSync('syncing');
-      const ok = await pushDeleteTransactions(sheetsUrl, todayTxns.map(t => t.id));
-      setSync(ok ? 'synced' : 'error');
-    }
   };
 
   const startEvent = () => {
