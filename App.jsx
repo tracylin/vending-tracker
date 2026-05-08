@@ -611,9 +611,10 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onUpload,
       <div className="abox">
         <button className="btn-restore" style={{padding:'15px',fontSize:15}} onClick={onDownload}>↓ Download</button>
         <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Pulls latest stock and last 7 days of sales. Use this when you start your shift on a new device.</div>
-        <button className="btn-secondary" style={{marginTop:14}} onClick={onUpload}>Upload Stock Counts</button>
-        <div className="albl" style={{marginTop:6,opacity:.5,fontSize:11}}>Each sale auto-uploads stock + transaction. Only tap this if you suspect Sheets fell out of sync.</div>
-        <div className="albl" style={{marginTop:8,opacity:.5,fontSize:10}}>Device: {DEVICE_ID}</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:14,paddingTop:10,borderTop:'1px solid var(--bd)'}}>
+          <span style={{fontSize:10,color:'var(--t3)',opacity:.7,letterSpacing:'.2px'}}>{DEVICE_ID}</span>
+          <button className="btn-link" onClick={onUpload}>force-upload stock</button>
+        </div>
       </div>
 
       {syncLog.length > 0 && (

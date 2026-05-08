@@ -251,8 +251,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .btn-sm{padding:9px 16px;border-radius:var(--r2);font-size:13px;font-weight:600;background:var(--s3);color:var(--t1)}
 .btn-restore{width:100%;padding:13px;border-radius:var(--r2);background:var(--ac2);color:var(--ac);font-size:14px;font-weight:700;letter-spacing:-.1px;font-family:var(--font)}
 .btn-restore:active{opacity:.8}
-.btn-secondary{width:100%;padding:9px;border-radius:var(--r2);background:transparent;border:1.5px dashed var(--bd);color:var(--t3);font-size:12px;font-weight:600;letter-spacing:.1px;font-family:var(--font);transition:border-color 140ms,color 140ms}
-.btn-secondary:active{border-color:var(--ac);color:var(--ac)}
+.btn-link{background:transparent;border:none;color:var(--t3);font-size:11px;font-weight:500;letter-spacing:.2px;padding:4px 6px;font-family:var(--font);transition:color 120ms;text-decoration:underline;text-decoration-color:var(--bd);text-underline-offset:3px}
+.btn-link:active{color:var(--ac)}
 .btn-danger{width:100%;padding:13px;border-radius:var(--r2);background:var(--dn2);color:var(--dn);font-size:14px;font-weight:700;letter-spacing:-.1px;font-family:var(--font)}
 
 /* ── settings rows ── */
