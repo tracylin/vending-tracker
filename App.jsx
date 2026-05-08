@@ -322,7 +322,7 @@ function Header({ txns, eventDay, sync, onRetry, editMode, onEdit, onDone, onCan
               <button className="btn-done" onClick={onDone}>Done</button>
             </>
           : <>
-              <span className="hdr-title">Vending Tracker{eventDay > 0 ? ` · Day ${eventDay}` : ''}</span>
+              <span className="hdr-title">Book Table{eventDay > 0 ? ` · Day ${eventDay}` : ''}</span>
               <div className="hdr-edit-btns">
                 <button className="btn-edit" onClick={onEdit}>Edit</button>
                 <button className={`sync sync-${sync}`} onClick={sync === 'error' ? onRetry : undefined}>
