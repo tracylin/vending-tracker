@@ -543,7 +543,7 @@ function SummaryView({ txns, eventDay }) {
 }
 
 // ── AdminView ─────────────────────────────────────────────────────────────────
-function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onPushStock, onPullStock, onPullTxns, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
+function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestoreStock, onLoadDefaults, onUpload, onDownload, syncLog, onStartEvent, onAddNewDay, onEndEvent, onRestoreSnapshot }) {
   const [url, setUrl] = useState(sheetsUrl);
   const [expandedHist, setExpandedHist] = useState(-1);
   const todayN = txns.filter(x => inToday(x, eventDay)).length;
@@ -571,15 +571,14 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestore
         </>
       )}
 
-      <div className="asec-hdr"><span className="asec-lbl">Stock Sync (Handoff)</span></div>
+      <div className="asec-hdr"><span className="asec-lbl">Device Sync</span></div>
       <div className="abox">
         <div className="albl" style={{marginBottom:8,opacity:.7,fontSize:11}}>Device: {DEVICE_ID}</div>
         <div style={{display:'flex',gap:8}}>
-          <button className="btn-restore" style={{flex:1}} onClick={onPushStock}>Push Stock</button>
-          <button className="btn-restore" style={{flex:1}} onClick={onPullStock}>Pull Stock</button>
+          <button className="btn-restore" style={{flex:1}} onClick={onUpload}>Upload</button>
+          <button className="btn-restore" style={{flex:1}} onClick={onDownload}>Download</button>
         </div>
-        <button className="btn-restore" style={{marginTop:8}} onClick={onPullTxns}>Pull Transactions</button>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock before handing off. Pull Stock loads partner's stock. Pull Transactions recovers sales history; preserves day tags from Sheets and sets your eventDay to the latest day found.</div>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Upload sends your stock to Sheets (transactions auto-push on every sale). Download pulls latest stock + missing transactions; sets eventDay to the latest day found, so a Day 3 staffer joining fresh lands on Day 3 with full history.</div>
       </div>
 
       {syncLog.length > 0 && (
@@ -1025,75 +1024,76 @@ export default function App() {
     itemsSnap: newItems.filter(i => i.active).map(i => ({ id: i.id, name: i.name, price: i.price, stock: i.stock })),
   });
 
-  const pushStock = () => {
-    if (!confirm("Push current stock to Google Sheets? This overwrites the shared stock.")) return;
-    pushItemsSync(sheetsUrl, items, true);
-    const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, ...snapshot(items, txns) };
-    setSyncLog(log => [entry, ...log].slice(0, 10));
-  };
-
-  const pullStock = async () => {
-    if (!confirm("Pull stock from Google Sheets? This overwrites your local stock counts.")) return;
-    setSync('syncing');
-    const data = await pullStockFromSheets(sheetsUrl);
-    if (!data || !data.items) { setSync('error'); alert('Failed to pull stock. Check connection.'); return; }
-    const remote = data.items;
-    const newItems = items.map(it => {
-      let match = remote.find(r => r.id && r.id === it.id);
-      if (!match) match = remote.find(r => r.name && r.name === it.name);
-      if (match) return { ...it, stock: match.stock };
-      return it;
-    });
-    setItems(newItems);
-    setSync('synced');
-    const entry = { ts: Date.now(), dir: 'pull', device: DEVICE_ID, ...snapshot(newItems, txns) };
-    setSyncLog(log => [entry, ...log].slice(0, 10));
-  };
-
-  const pullTransactions = async () => {
+  const downloadFromSheets = async () => {
     if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
-    const daysBack = parseInt(prompt("Pull transactions from how many days back?\n(Default: 30. Use a smaller number to skip older events.)", "30"), 10);
+    const daysBack = parseInt(prompt("Download — how many days of transactions to pull?\n(Default: 30. Smaller number = skip older events.)", "30"), 10);
     if (!daysBack || daysBack <= 0) return;
+    if (!confirm("This will overwrite your local stock counts with Sheets, and import any missing transactions. Existing local sales are kept.\n\nProceed?")) return;
     setSync('syncing');
     try {
-      const res = await fetch(sheetsUrl + '?action=getTransactions');
-      const data = await res.json();
-      if (!data || !data.transactions) {
+      // 1. Stock
+      const stockData = await pullStockFromSheets(sheetsUrl);
+      if (!stockData || !stockData.items) {
         setSync('error');
-        alert('Endpoint missing or returned no transactions. Update Apps Script to the latest apps-script.js and redeploy.');
+        alert('Failed to fetch stock. Check connection or Apps Script deployment.');
+        return;
+      }
+      const remote = stockData.items;
+      const newItems = items.map(it => {
+        let match = remote.find(r => r.id && r.id === it.id);
+        if (!match) match = remote.find(r => r.name && r.name === it.name);
+        if (match) return { ...it, stock: match.stock };
+        return it;
+      });
+      setItems(newItems);
+
+      // 2. Transactions
+      const res = await fetch(sheetsUrl + '?action=getTransactions');
+      const txData = await res.json();
+      if (!txData || !txData.transactions) {
+        setSync('error');
+        alert(`Stock synced for ${remote.length} items, but the transactions endpoint isn't deployed yet. Update Apps Script to the latest apps-script.js and redeploy to enable transaction sync.`);
         return;
       }
       const cutoff = Date.now() - daysBack * 24 * 3600 * 1000;
-      const recent = data.transactions.filter(t => t.ts >= cutoff);
+      const recent = txData.transactions.filter(t => t.ts >= cutoff);
       const localIds = new Set(txns.map(t => t.id));
       const fresh = recent.filter(t => !localIds.has(t.id));
-      if (!fresh.length) {
-        setSync('synced');
-        alert(`No new transactions. (${recent.length} in Sheets within ${daysBack} days, all already local.)`);
-        return;
-      }
-      // Default-tag legacy untagged rows as Day 1; preserve sheet-stored day otherwise
       let untagged = 0;
       fresh.forEach(t => {
-        if (t.day === null || t.day === undefined || t.day === 0) {
-          t.day = 1;
-          untagged++;
-        }
+        if (t.day === null || t.day === undefined || t.day === 0) { t.day = 1; untagged++; }
         t.synced = true;
       });
       const merged = [...fresh, ...txns].sort((a, b) => b.ts - a.ts);
       setTxns(merged);
-      // Set local eventDay to max day across all txns (so a Day 3 joiner lands on Day 3)
       const maxDay = merged.reduce((m, t) => Math.max(m, t.day || 0), 0);
       if (maxDay > 0 && maxDay !== eventDay) setEventDay(maxDay);
+
+      const entry = { ts: Date.now(), dir: 'pull', device: DEVICE_ID, ...snapshot(newItems, merged) };
+      setSyncLog(log => [entry, ...log].slice(0, 10));
+
       setSync('synced');
       const sum = fresh.reduce((s, t) => s + t.total, 0);
-      const note = untagged > 0 ? `\n${untagged} legacy untagged rows defaulted to Day 1.` : '';
-      alert(`Imported ${fresh.length} transactions ($${sum.toFixed(2)}). eventDay set to ${maxDay}.${note}`);
+      const noteParts = [
+        `Stock: ${remote.length} items`,
+        `Transactions: ${fresh.length} new${fresh.length ? ` ($${sum.toFixed(2)})` : ''}`,
+      ];
+      if (maxDay > 0) noteParts.push(`eventDay: ${maxDay}`);
+      if (untagged > 0) noteParts.push(`${untagged} legacy untagged rows defaulted to Day 1`);
+      alert('Downloaded.\n• ' + noteParts.join('\n• '));
     } catch (e) {
       setSync('error');
       alert('Failed: ' + e.message);
     }
+  };
+
+  const uploadToSheets = () => {
+    if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
+    if (!confirm("Upload your current stock to Sheets? This overwrites the shared stock counts.")) return;
+    pushItemsSync(sheetsUrl, items, true);
+    const entry = { ts: Date.now(), dir: 'push', device: DEVICE_ID, ...snapshot(items, txns) };
+    setSyncLog(log => [entry, ...log].slice(0, 10));
+    alert('Uploaded stock to Sheets. (Transactions auto-push on each sale, no manual upload needed.)');
   };
 
   const restoreSnapshot = idx => {
@@ -1205,7 +1205,7 @@ export default function App() {
             sheetsUrl={sheetsUrl} setSheetsUrl={setSheetsUrl}
             txns={txns} eventDay={eventDay}
             onReset={resetToday} onRestoreStock={restoreOriginalStock} onLoadDefaults={loadDefaultItems}
-            onPushStock={pushStock} onPullStock={pullStock} onPullTxns={pullTransactions} syncLog={syncLog}
+            onUpload={uploadToSheets} onDownload={downloadFromSheets} syncLog={syncLog}
             onStartEvent={startEvent} onAddNewDay={addNewDay} onEndEvent={endEvent}
             onRestoreSnapshot={restoreSnapshot}
           />
