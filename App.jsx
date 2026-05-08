@@ -64,7 +64,8 @@ async function pushSheets(url, txn) {
     const rows = txn.items.map(i => ({
       transaction_id: txn.id, timestamp: new Date(txn.ts).toISOString(),
       item_name: i.name, quantity: i.qty, unit_price: i.up, line_total: i.lt,
-      payment_method: txn.pay, note: txn.note || '', synced_at: new Date().toISOString()
+      payment_method: txn.pay, note: txn.note || '', synced_at: new Date().toISOString(),
+      day: txn.day || ''
     }));
     await fetch(url, {
       method: 'POST', mode: 'no-cors',
@@ -577,8 +578,8 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onRestore
           <button className="btn-restore" style={{flex:1}} onClick={onPushStock}>Push Stock</button>
           <button className="btn-restore" style={{flex:1}} onClick={onPullStock}>Pull Stock</button>
         </div>
-        <button className="btn-restore" style={{marginTop:8}} onClick={onPullTxns}>Pull Transactions (last 48h)</button>
-        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock to Sheets before handing off. Pull to load your partner's latest stock. Pull Transactions recovers sales history if local data was cleared (tags imports as Day 1).</div>
+        <button className="btn-restore" style={{marginTop:8}} onClick={onPullTxns}>Pull Transactions</button>
+        <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Push your current stock before handing off. Pull Stock loads partner's stock. Pull Transactions recovers sales history; preserves day tags from Sheets and sets your eventDay to the latest day found.</div>
       </div>
 
       {syncLog.length > 0 && (
@@ -1051,32 +1052,44 @@ export default function App() {
 
   const pullTransactions = async () => {
     if (!sheetsUrl) { alert('Set Google Sheets URL first.'); return; }
-    if (!confirm("Pull recent transactions (last 48h) from Google Sheets?\n\nExisting local transactions are kept; only missing ones are added. All imports tagged Day 1.")) return;
+    const daysBack = parseInt(prompt("Pull transactions from how many days back?\n(Default: 30. Use a smaller number to skip older events.)", "30"), 10);
+    if (!daysBack || daysBack <= 0) return;
     setSync('syncing');
     try {
       const res = await fetch(sheetsUrl + '?action=getTransactions');
       const data = await res.json();
       if (!data || !data.transactions) {
         setSync('error');
-        alert('Endpoint missing or returned no transactions. Make sure Apps Script is updated to the latest apps-script.js (with getTransactions handler) and redeployed.');
+        alert('Endpoint missing or returned no transactions. Update Apps Script to the latest apps-script.js and redeploy.');
         return;
       }
-      const cutoff = Date.now() - 48 * 3600 * 1000;
+      const cutoff = Date.now() - daysBack * 24 * 3600 * 1000;
       const recent = data.transactions.filter(t => t.ts >= cutoff);
       const localIds = new Set(txns.map(t => t.id));
       const fresh = recent.filter(t => !localIds.has(t.id));
       if (!fresh.length) {
         setSync('synced');
-        alert(`No new transactions to import. (${recent.length} recent in Sheets, all already local.)`);
+        alert(`No new transactions. (${recent.length} in Sheets within ${daysBack} days, all already local.)`);
         return;
       }
-      fresh.forEach(t => { t.day = 1; t.synced = true; });
+      // Default-tag legacy untagged rows as Day 1; preserve sheet-stored day otherwise
+      let untagged = 0;
+      fresh.forEach(t => {
+        if (t.day === null || t.day === undefined || t.day === 0) {
+          t.day = 1;
+          untagged++;
+        }
+        t.synced = true;
+      });
       const merged = [...fresh, ...txns].sort((a, b) => b.ts - a.ts);
       setTxns(merged);
-      if (eventDay === 0) setEventDay(1);
+      // Set local eventDay to max day across all txns (so a Day 3 joiner lands on Day 3)
+      const maxDay = merged.reduce((m, t) => Math.max(m, t.day || 0), 0);
+      if (maxDay > 0 && maxDay !== eventDay) setEventDay(maxDay);
       setSync('synced');
       const sum = fresh.reduce((s, t) => s + t.total, 0);
-      alert(`Imported ${fresh.length} transactions ($${sum.toFixed(2)}), tagged Day 1.`);
+      const note = untagged > 0 ? `\n${untagged} legacy untagged rows defaulted to Day 1.` : '';
+      alert(`Imported ${fresh.length} transactions ($${sum.toFixed(2)}). eventDay set to ${maxDay}.${note}`);
     } catch (e) {
       setSync('error');
       alert('Failed: ' + e.message);

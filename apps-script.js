@@ -42,7 +42,8 @@ function getTransactionsData() {
   const sheet = getSheet(ss);
   const last = sheet.getLastRow();
   if (last <= 1) return json({ ok: true, transactions: [], time: new Date().toISOString() });
-  const data = sheet.getRange(2, 1, last - 1, 9).getValues();
+  const lastCol = Math.max(sheet.getLastColumn(), 10);
+  const data = sheet.getRange(2, 1, last - 1, lastCol).getValues();
   const byId = {};
   data.forEach(r => {
     const tid = r[0];
@@ -56,6 +57,7 @@ function getTransactionsData() {
         total: 0,
         pay: r[6] || '',
         note: r[7] || '',
+        day: r[9] !== '' && r[9] !== null && r[9] !== undefined ? Number(r[9]) || null : null,
       };
     }
     const qty = Number(r[3]) || 0;
@@ -100,6 +102,11 @@ function getStockData() {
 function logRows(rows) {
   const ss    = SpreadsheetApp.openById('1y5Iq5CWK4ZfdEOGApIwAhebuMwhnaEv-oHlw1n1e_dY');
   const sheet = getSheet(ss);
+  // Ensure the day column exists on legacy 9-column sheets
+  if (sheet.getLastColumn() < 10) {
+    sheet.getRange(1, 10).setValue('day').setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
+    sheet.setColumnWidth(10, 60);
+  }
   const vals  = rows.map(r => [
     r.transaction_id,
     r.timestamp,
@@ -110,21 +117,23 @@ function logRows(rows) {
     r.payment_method,
     r.note || '',
     r.synced_at,
+    r.day || '',
   ]);
-  sheet.getRange(sheet.getLastRow() + 1, 1, vals.length, 9).setValues(vals);
+  sheet.getRange(sheet.getLastRow() + 1, 1, vals.length, 10).setValues(vals);
 }
 
 function getSheet(ss) {
   let s = ss.getSheetByName('Sales');
   if (!s) {
     s = ss.insertSheet('Sales');
-    const h = ['transaction_id','timestamp','item_name','quantity','unit_price','line_total','payment_method','note','synced_at'];
+    const h = ['transaction_id','timestamp','item_name','quantity','unit_price','line_total','payment_method','note','synced_at','day'];
     s.appendRow(h);
     s.setFrozenRows(1);
     s.getRange(1,1,1,h.length).setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
-    s.setColumnWidths(1, 9, 140);
+    s.setColumnWidths(1, h.length, 140);
     s.setColumnWidth(2, 180);
     s.setColumnWidth(8, 220);
+    s.setColumnWidth(10, 60);
   }
   return s;
 }
