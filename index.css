@@ -131,8 +131,13 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .ppill.s-venmo{background:var(--ve2);border-color:var(--ve);color:var(--ve)}
 .ppill.s-zelle{background:var(--ze2);border-color:var(--ze);color:var(--ze)}
 .ppill.s-cash{background:var(--ca2);border-color:var(--ca);color:var(--ca)}
+.ppill-disc{flex:0 0 auto;padding:11px 10px}
+.ppill.s-disc{background:rgba(245,166,35,.15);border-color:#f5a623;color:#f5a623}
 .note-input{width:100%;margin-bottom:14px;font-size:14px;font-weight:400}
 
+.cl-orig{font-size:12px;opacity:.4;text-decoration:line-through;min-width:48px;text-align:right;flex-shrink:0}
+.cl-disc{color:#f5a623}
+.sold-orig{text-decoration:line-through;opacity:.4;font-weight:500;margin-right:4px;font-size:13px}
 /* SOLD button */
 .btn-sold{width:100%;padding:16px;border-radius:var(--r2);background:var(--ac);color:#fff;font-size:16px;font-weight:700;transition:opacity 120ms,transform 80ms;letter-spacing:-.1px;font-family:var(--font)}
 .btn-sold:disabled{opacity:.28;cursor:not-allowed}

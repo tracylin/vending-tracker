@@ -199,10 +199,11 @@ function EditRow({ draft, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isL
 }
 
 // ── CartPanel ─────────────────────────────────────────────────────────────────
-function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setNote, onSold, busy, expanded, setExpanded }) {
+function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setNote, onSold, busy, expanded, setExpanded, discount, setDiscount }) {
   const [listOpen, setListOpen] = useState(false);
   const count = cart.reduce((s, c) => s + c.qty, 0);
-  const total = cart.reduce((s, c) => { const it = items.find(i => i.id === c.id); return s + (it ? it.price * c.qty : 0); }, 0);
+  const origTotal = cart.reduce((s, c) => { const it = items.find(i => i.id === c.id); return s + (it ? it.price * c.qty : 0); }, 0);
+  const total = discount ? +(origTotal * 0.7).toFixed(2) : origTotal;
   if (!count) return null;
   return (
     <div className="cp">
@@ -221,6 +222,8 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
               {cart.map(c => {
                 const it = items.find(i => i.id === c.id);
                 if (!it) return null;
+                const lineFull = it.price * c.qty;
+                const lineDisc = +(lineFull * 0.7).toFixed(2);
                 return (
                   <div className="cl" key={c.id}>
                     <span className="cl-name">{it.name}</span>
@@ -229,7 +232,10 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
                       <span className="qnum">{c.qty}</span>
                       <button className="qbtn" onClick={() => onQtyChange(c.id, +1)}>+</button>
                     </div>
-                    <span className="cl-tot">{fmt(it.price * c.qty)}</span>
+                    {discount
+                      ? <><span className="cl-tot cl-orig">{fmt(lineFull)}</span><span className="cl-tot cl-disc">{fmt(lineDisc)}</span></>
+                      : <span className="cl-tot">{fmt(lineFull)}</span>
+                    }
                     <button className="cl-rm" onClick={() => onRemove(c.id)}>✕</button>
                   </div>
                 );
@@ -242,10 +248,13 @@ function CartPanel({ cart, items, onQtyChange, onRemove, pay, setPay, note, setN
                 {PAY_LABEL[m]}
               </button>
             ))}
+            <button className={`ppill ppill-disc${discount ? ' s-disc' : ''}`} onClick={() => setDiscount(d => !d)}>-30%</button>
           </div>
           <input className="note-input" placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)} />
           <button className="btn-sold" disabled={!pay || busy} onClick={onSold}>
-            {busy ? 'Processing…' : `Sold  ${fmt(total)}`}
+            {busy ? 'Processing…' : discount
+              ? <><span className="sold-orig">{fmt(origTotal)}</span> {fmt(total)}</>
+              : `Sold  ${fmt(total)}`}
           </button>
         </div>
       )}
@@ -556,6 +565,7 @@ export default function App() {
   const [cartPay,      setCartPay]      = useState('');
   const [cartNote,     setCartNote]     = useState('');
   const [cartBusy,     setCartBusy]     = useState(false);
+  const [cartDiscount, setCartDiscount] = useState(false);
 
   // sync
   const [undoTxn,   setUndoTxn]     = useState(null);
@@ -707,16 +717,19 @@ export default function App() {
   const sellCart = async () => {
     if (!cartPay || cartBusy) return;
     setCartBusy(true);
+    const factor = cartDiscount ? 0.7 : 1;
+    const discNote = cartDiscount ? (cartNote ? cartNote + ' | 30% off' : '30% off') : cartNote;
     const txn = {
       id:    uid(),
       ts:    Date.now(),
       items: cart.map(c => {
         const it = items.find(i => i.id === c.id);
-        return { id: c.id, name: it.name, up: it.price, qty: c.qty, lt: +(it.price * c.qty).toFixed(2) };
+        const up = +(it.price * factor).toFixed(2);
+        return { id: c.id, name: it.name, up, qty: c.qty, lt: +(up * c.qty).toFixed(2) };
       }),
-      total: +cart.reduce((s, c) => { const it = items.find(i => i.id === c.id); return s + (it ? it.price * c.qty : 0); }, 0).toFixed(2),
+      total: +cart.reduce((s, c) => { const it = items.find(i => i.id === c.id); return s + (it ? +(it.price * factor).toFixed(2) * c.qty : 0); }, 0).toFixed(2),
       pay:   cartPay,
-      note:  cartNote,
+      note:  discNote,
       synced: false,
     };
     const newItems = items.map(it => {
@@ -731,6 +744,7 @@ export default function App() {
     setCart([]);
     setCartPay('');
     setCartNote('');
+    setCartDiscount(false);
     setCartExpanded(false);
     setCartBusy(false);
     setUndoTxn(txn);
@@ -940,6 +954,7 @@ export default function App() {
           note={cartNote} setNote={setCartNote}
           onSold={sellCart} busy={cartBusy}
           expanded={cartExpanded} setExpanded={setCartExpanded}
+          discount={cartDiscount} setDiscount={setCartDiscount}
         />
       )}
 
