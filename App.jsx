@@ -1037,7 +1037,8 @@ export default function App() {
     if (!data || !data.items) { setSync('error'); alert('Failed to pull stock. Check connection.'); return; }
     const remote = data.items;
     const newItems = items.map(it => {
-      const match = remote.find(r => r.id === it.id);
+      let match = remote.find(r => r.id && r.id === it.id);
+      if (!match) match = remote.find(r => r.name && r.name === it.name);
       if (match) return { ...it, stock: match.stock };
       return it;
     });

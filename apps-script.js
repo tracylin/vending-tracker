@@ -41,14 +41,27 @@ function getStockData() {
   const sheet = getItemsSheet(ss);
   const last = sheet.getLastRow();
   if (last <= 1) return json({ ok: true, items: [], time: new Date().toISOString() });
-  const data = sheet.getRange(2, 1, last - 1, 5).getValues();
-  const items = data.filter(r => r[0]).map(r => ({
-    id: String(r[0]),
-    name: r[1],
-    price: r[2],
-    stock: r[3] === '∞' ? null : Number(r[3]),
-    updated_at: r[4]
-  }));
+  const lastCol = Math.max(sheet.getLastColumn(), 5);
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim().toLowerCase());
+  const ix = {
+    id:         headers.indexOf('id'),
+    name:       headers.indexOf('name'),
+    price:      headers.indexOf('price'),
+    stock:      headers.indexOf('stock'),
+    updated_at: headers.indexOf('updated_at'),
+  };
+  const data = sheet.getRange(2, 1, last - 1, lastCol).getValues();
+  const items = data.filter(r => r.some(v => v !== '' && v !== null && v !== undefined)).map(r => {
+    const stockRaw = ix.stock >= 0 ? r[ix.stock] : '';
+    const isUnlim = stockRaw === '∞' || stockRaw === '' || stockRaw === null || stockRaw === undefined;
+    return {
+      id:         ix.id         >= 0 ? String(r[ix.id]) : '',
+      name:       ix.name       >= 0 ? r[ix.name] : '',
+      price:      ix.price      >= 0 ? Number(r[ix.price]) || 0 : 0,
+      stock:      isUnlim ? null : Number(stockRaw),
+      updated_at: ix.updated_at >= 0 ? r[ix.updated_at] : '',
+    };
+  });
   return json({ ok: true, items, time: new Date().toISOString() });
 }
 
