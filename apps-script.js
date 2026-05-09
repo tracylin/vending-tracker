@@ -107,7 +107,17 @@ function logRows(rows) {
     sheet.getRange(1, 10).setValue('day').setFontWeight('bold').setBackground('#1a1a1a').setFontColor('#f2f2f2');
     sheet.setColumnWidth(10, 60);
   }
-  const vals  = rows.map(r => [
+  // Dedup: skip rows whose transaction_id already exists in column A
+  const last = sheet.getLastRow();
+  const existing = new Set();
+  if (last > 1) {
+    sheet.getRange(2, 1, last - 1, 1).getValues().forEach(r => {
+      if (r[0]) existing.add(String(r[0]));
+    });
+  }
+  const filtered = rows.filter(r => !existing.has(String(r.transaction_id)));
+  if (!filtered.length) return;
+  const vals = filtered.map(r => [
     r.transaction_id,
     r.timestamp,
     r.item_name,

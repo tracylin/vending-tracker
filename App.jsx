@@ -505,10 +505,19 @@ function SummaryView({ txns, eventDay }) {
   const rows = effectiveScope === 'total' ? txns.filter(inEvent) : txns.filter(x => inToday(x, eventDay));
   const d = useMemo(() => rows.reduce((a, x) => {
     a.rev += x.total; a[x.pay] = (a[x.pay] || 0) + x.total;
-    x.items.forEach(it => { if (!a.im[it.name]) a.im[it.name] = { c: 0, r: 0 }; a.im[it.name].c += it.qty; a.im[it.name].r += it.lt; });
+    const isDisc = (x.note || '').includes('30%');
+    x.items.forEach(it => {
+      if (!a.im[it.name]) a.im[it.name] = { c: 0, r: 0, full: 0, disc: 0 };
+      a.im[it.name].c += it.qty;
+      a.im[it.name].r += it.lt;
+      if (isDisc) a.im[it.name].disc += it.qty;
+      else        a.im[it.name].full += it.qty;
+    });
     return a;
   }, { rev: 0, venmo: 0, zelle: 0, cash: 0, im: {} }), [rows]);
-  const top = Object.entries(d.im).sort((a, b) => b[1].r - a[1].r).slice(0, 5);
+  const top      = Object.entries(d.im).sort((a, b) => b[1].r - a[1].r).slice(0, 5);
+  const byTitle  = Object.entries(d.im).sort((a, b) => b[1].c - a[1].c);
+  const totalQty = Object.values(d.im).reduce((s, v) => s + v.c, 0);
   const avg = rows.length ? d.rev / rows.length : 0;
   const pct = n => d.rev > 0 ? Math.round(n / d.rev * 100) + '%' : '—';
   const bw  = n => d.rev > 0 ? Math.round(n / d.rev * 100) + '%' : '0%';
@@ -568,6 +577,23 @@ function SummaryView({ txns, eventDay }) {
               <span className="topname">{name}</span>
               <span className="topcnt">×{data.c}</span>
               <span className="toprev">{fmt(data.r)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {byTitle.length > 0 && (
+        <div className="sumsec">
+          <div className="seclbl">By Title<span style={{ color: 'var(--t3)', fontWeight: 500, marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>{totalQty} books · {fmt(d.rev)}</span></div>
+          {byTitle.map(([name, data]) => (
+            <div className="title-row" key={name}>
+              <div className="title-row-top">
+                <span className="title-row-name">{name}</span>
+                <span className="title-row-qty">{data.c}</span>
+              </div>
+              <div className="title-row-chips">
+                {data.full > 0 && <span className="title-chip title-chip-full">{data.full} full</span>}
+                {data.disc > 0 && <span className="title-chip title-chip-disc">{data.disc} -30%</span>}
+              </div>
             </div>
           ))}
         </div>
@@ -920,8 +946,10 @@ export default function App() {
   const cartQtyChange = (id, delta) => { if (delta > 0) addToCart(id); else subFromCart(id); };
   const cartRemove    = id => setCart(p => p.filter(c => c.id !== id));
 
+  const sellingRef = useRef(false);
   const sellCart = async () => {
-    if (!cartPay || cartBusy) return;
+    if (!cartPay || cartBusy || sellingRef.current) return;
+    sellingRef.current = true;
     setCartBusy(true);
     const factor = cartDiscount ? 0.7 : 1;
     const discNote = cartDiscount ? (cartNote ? cartNote + ' | 30% off' : '30% off') : cartNote;
@@ -954,6 +982,7 @@ export default function App() {
     setCartDiscount(false);
     setCartExpanded(false);
     setCartBusy(false);
+    sellingRef.current = false;
     setUndoTxn(txn);
     pushItemsSync(sheetsUrl, newItems);
     if (sheetsUrl) {
