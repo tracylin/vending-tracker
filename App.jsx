@@ -732,7 +732,7 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onUpload,
       <div className="asec-hdr"><span className="asec-lbl">Danger Zone</span></div>
       <div className="abox">
         <button className="btn-danger" onClick={onReset}>
-          Reset {todayLabel}'s Sales + Restock ({todayN} transaction{todayN !== 1 ? 's' : ''})
+          Reset local data ({todayN} transaction{todayN !== 1 ? 's' : ''})
         </button>
       </div>
 
