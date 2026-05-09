@@ -294,6 +294,18 @@ function UndoToast({ txn, onUndo, onDone }) {
   );
 }
 
+// ── Loading overlay ───────────────────────────────────────────────────────────
+function LoadingOverlay({ text }) {
+  return (
+    <div className="overlay">
+      <div className="loading-box">
+        <div className="loading-spinner" />
+        <div className="loading-text">{text || 'Syncing…'}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dialog ────────────────────────────────────────────────────────────────────
 // kind: 'info' (single OK) | 'confirm' (cancel + primary) | 'danger' (cancel + red)
 function Dialog({ title, body, kind = 'confirm', confirmLabel, cancelLabel, onConfirm, onCancel }) {
@@ -635,7 +647,7 @@ function AdminView({ sheetsUrl, setSheetsUrl, txns, eventDay, onReset, onUpload,
 
       <div className="asec-hdr"><span className="asec-lbl">Device Sync</span></div>
       <div className="abox">
-        <button className="btn-restore" style={{padding:'15px',fontSize:15}} onClick={onDownload}>↓ Download</button>
+        <button className="btn-restore" style={{padding:'15px',fontSize:15}} onClick={onDownload}>↓ Pull Data</button>
         <div className="albl" style={{marginTop:6,opacity:.6,fontSize:11}}>Pulls latest stock and last 7 days of sales. Use this when you start your shift on a new device.</div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:14,paddingTop:10,borderTop:'1px solid var(--bd)'}}>
           <span style={{fontSize:10,color:'var(--t3)',opacity:.7,letterSpacing:'.2px'}}>{DEVICE_ID}</span>
@@ -779,8 +791,9 @@ export default function App() {
   const [editDraft,        setEditDraft]        = useState(null);
   const [isDirty,          setIsDirty]          = useState(false);
 
-  // dialog
+  // dialog & loading
   const [dialog, setDialog] = useState(null);
+  const [loading, setLoading] = useState(null); // null or { text: string }
   const showDialog = useCallback(opts => new Promise(resolve => {
     setDialog({
       ...opts,
@@ -1110,12 +1123,14 @@ export default function App() {
   const downloadFromSheets = async () => {
     const daysBack = 7;
     setSync('syncing');
+    setLoading({ text: 'Pulling latest stock and sales…' });
     try {
       // 1. Stock
       const stockData = await pullStockFromSheets(sheetsUrl);
       if (!stockData || !stockData.items) {
         setSync('error');
-        await showDialog({ title: 'Download failed', body: 'Could not reach Google Sheets. Check your connection.', kind: 'info' });
+        setLoading(null);
+        await showDialog({ title: 'Pull failed', body: 'Could not reach Google Sheets. Check your connection.', kind: 'info' });
         return;
       }
       const remote = stockData.items;
@@ -1132,6 +1147,7 @@ export default function App() {
       const txData = await res.json();
       if (!txData || !txData.transactions) {
         setSync('error');
+        setLoading(null);
         await showDialog({
           title: 'Apps Script needs update',
           body: `Stock synced (${remote.length} items), but the transactions endpoint isn't deployed. Redeploy the latest apps-script.js to enable transaction sync.`,
@@ -1139,6 +1155,7 @@ export default function App() {
         });
         return;
       }
+      setLoading({ text: 'Merging transactions…' });
       const cutoff = Date.now() - daysBack * 24 * 3600 * 1000;
       const recent = txData.transactions.filter(t => t.ts >= cutoff);
       const localIds = new Set(txns.map(t => t.id));
@@ -1164,10 +1181,12 @@ export default function App() {
       ];
       if (maxDay > 0) lines.push(`Event day: ${maxDay}`);
       if (untagged > 0) lines.push(`${untagged} older sale${untagged !== 1 ? 's' : ''} tagged Day 1`);
-      await showDialog({ title: 'Downloaded', body: lines, kind: 'info', confirmLabel: 'Done' });
+      setLoading(null);
+      await showDialog({ title: 'Done', body: lines, kind: 'info', confirmLabel: 'OK' });
     } catch (e) {
       setSync('error');
-      await showDialog({ title: 'Download failed', body: e.message, kind: 'info' });
+      setLoading(null);
+      await showDialog({ title: 'Pull failed', body: e.message, kind: 'info' });
     }
   };
 
@@ -1341,6 +1360,8 @@ export default function App() {
       <Nav tab={tab} set={t => { if (!editMode) setTab(t); }} />
 
       {undoTxn && <UndoToast txn={undoTxn} onUndo={undo} onDone={() => setUndoTxn(null)} />}
+
+      {loading && <LoadingOverlay text={loading.text} />}
 
       {dialog && (
         <Dialog

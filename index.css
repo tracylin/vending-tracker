@@ -162,6 +162,10 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .confirm-title{font-size:16px;font-weight:700;margin-bottom:8px;color:var(--t1);letter-spacing:-.2px}
 .confirm-body{font-size:14px;color:var(--t2);margin-bottom:20px;line-height:1.5}
 .confirm-btns{display:flex;gap:8px}
+.loading-box{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:32px 36px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:220px;box-shadow:0 16px 48px rgba(0,0,0,.4)}
+.loading-spinner{width:34px;height:34px;border:3px solid var(--s3);border-top-color:var(--ac);border-radius:50%;animation:spin 700ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--t2);font-weight:500;letter-spacing:.2px;text-align:center}
 .btn-confirm-cancel{flex:1;padding:12px;border-radius:var(--r2);background:var(--s3);font-size:14px;font-weight:600;text-align:center;color:var(--t1);font-family:var(--font)}
 .btn-confirm-discard{flex:1;padding:12px;border-radius:var(--r2);background:var(--dn2);color:var(--dn);font-size:14px;font-weight:700;text-align:center;font-family:var(--font)}
 .btn-confirm-primary{flex:1;padding:12px;border-radius:var(--r2);background:var(--ac);color:#fff;font-size:14px;font-weight:700;text-align:center;font-family:var(--font);transition:opacity 120ms}
